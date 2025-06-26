@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Homepage</title>
+    <title>Shopping Cart</title>
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         rel="stylesheet" />
@@ -424,7 +424,7 @@ footer {
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container-fluid px-5">
             <a class="navbar-brand d-flex align-items-center gap-2" href="index.html">
-                <img src="logo.png" alt="logo" style="height: 40px;">
+                <img src="imgs/logo.png" alt="logo" style="height: 40px;">
                 <h1>PLAYVERSE</h1>
             </a>
 
@@ -444,17 +444,16 @@ footer {
                 id="navbarContent">
                 <ul class="navbar-nav gap-3">
                     <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="index.php"><i class="fa-solid fa-house"></i>HOME</a>
-                    </li>
-
-                    <li class="nav-item">
-                        <a class="nav-link" href="#"><i class="fa-solid fa-briefcase"></i>WHAT WE OFFER</a>
+                        <a class="nav-link" href="index.html"><i class="fa-solid fa-house"></i>HOME</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#"><i class="fa-solid fa-users"></i>ABOUT US</a>
+                        <a class="nav-link" href="offers.html"><i class="fa-solid fa-briefcase"></i>WHAT WE OFFER</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#"><i class="fa-solid fa-cart-shopping"></i>CART</a>
+                        <a class="nav-link" href="about.html"><i class="fa-solid fa-users"></i>ABOUT US</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="cart.html"><i class="fa-solid fa-cart-shopping"></i>CART</a>
                     </li>
                     <li class="nav-item">
                         <a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN </a>
@@ -472,7 +471,7 @@ footer {
 
             <!-- Cart Item 1 -->
             <div class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-                <img src="rtx4080.jpg" alt="Product" class="cart-img" />
+                <img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
                 <div class="flex-grow-1">
                     <h4 class="mb-2" style="color: var(--navy);">RTX 4080 Gaming GPU</h4>
                     <p class="mb-1"><strong>Price:</strong> ₱59,999</p>
@@ -481,12 +480,12 @@ footer {
                         <input type="number" id="qty1" class="form-control form-control-sm" value="1" min="1" style="width: 70px;" />
                     </div>
                 </div>
-                <button class="btn btn-danger btn-sm mt-3 mt-md-0">Remove</button>
+                <button class="btn btn-danger btn-sm mt-3 mt-md-0"><i class="fa-solid fa-trash"></i>Remove</button>
             </div>
 
             <!-- Cart Item 2 -->
             <div class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-                <img src="ps5.jpg" alt="Product" class="cart-img" />
+                <img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
                 <div class="flex-grow-1">
                     <h4 class="mb-2" style="color: var(--navy);">PlayStation 5</h4>
                     <p class="mb-1"><strong>Price:</strong> ₱30,000</p>
@@ -495,12 +494,12 @@ footer {
                         <input type="number" id="qty2" class="form-control form-control-sm" value="2" min="1" style="width: 70px;" />
                     </div>
                 </div>
-                <button class="btn btn-danger btn-sm mt-3 mt-md-0">Remove</button>
+                <button class="btn btn-danger btn-sm mt-3 mt-md-0"><i class="fa-solid fa-trash"></i>Remove</button>
             </div>
 
             <!-- Cart Item 3 -->
             <div class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-                <img src="keyboard.jpg" alt="Product" class="cart-img" />
+                <img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
                 <div class="flex-grow-1">
                     <h4 class="mb-2" style="color: var(--navy);">Mechanical Keyboard</h4>
                     <p class="mb-1"><strong>Price:</strong> ₱5,000</p>
@@ -509,12 +508,12 @@ footer {
                         <input type="number" id="qty3" class="form-control form-control-sm" value="1" min="1" style="width: 70px;" />
                     </div>
                 </div>
-                <button class="btn btn-danger btn-sm mt-3 mt-md-0">Remove</button>
+                <button class="btn btn-danger btn-sm mt-3 mt-md-0"><i class="fa-solid fa-trash"></i>Remove</button>
             </div>
 
             <!-- Cart Item 4 -->
             <div class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-                <img src="monitor.jpg" alt="Product" class="cart-img" />
+                <img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
                 <div class="flex-grow-1">
                     <h4 class="mb-2" style="color: var(--navy);">4K Gaming Monitor</h4>
                     <p class="mb-1"><strong>Price:</strong> ₱20,000</p>
@@ -523,7 +522,7 @@ footer {
                         <input type="number" id="qty4" class="form-control form-control-sm" value="1" min="1" style="width: 70px;" />
                     </div>
                 </div>
-                <button class="btn btn-danger btn-sm mt-3 mt-md-0">Remove</button>
+                <button class="btn btn-danger btn-sm mt-3 mt-md-0"><i class="fa-solid fa-trash"></i>Remove</button>
             </div>
 
             <!-- Total and Checkout -->
