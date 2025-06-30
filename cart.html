@@ -421,6 +421,17 @@
 				transform: translateY(-1px);
 				box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
 			}
+
+			.quantity-wrapper {
+				margin-top: 0.5rem;
+				width: 140px;
+			}
+
+			.input-group input[type='number']::-webkit-inner-spin-button,
+			.input-group input[type='number']::-webkit-outer-spin-button {
+				-webkit-appearance: none;
+				margin: 0;
+			}
 		</style>
 	</head>
 
@@ -497,20 +508,32 @@
 				>
 					<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
 					<div class="flex-grow-1">
-						<h4 class="mb-2" style="color: var(--navy)">RTX 4080 Gaming GPU</h4>
+						<h2 class="mb-2" style="color: var(--navy)">RTX 4080 Gaming GPU</h2>
 						<p class="mb-1"><strong>Price:</strong> ₱59,999</p>
-						<div class="d-flex align-items-center gap-2">
-							<label for="qty1" class="form-label mb-0"
-								><strong>Quantity:</strong></label
-							>
-							<input
-								type="number"
-								id="qty1"
-								class="form-control form-control-sm"
-								value="1"
-								min="1"
-								style="width: 70px"
-							/>
+						<div class="quantity-wrapper">
+							<label class="form-label mb-3"><strong>Quantity:</strong></label>
+							<div class="input-group input-group-sm">
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.nextElementSibling.stepDown()"
+								>
+									-
+								</button>
+								<input
+									type="number"
+									class="form-control text-center border-dark"
+									value="1"
+									min="1"
+								/>
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.previousElementSibling.stepUp()"
+								>
+									+
+								</button>
+							</div>
 						</div>
 					</div>
 					<button class="btn btn-danger btn-sm mt-3 mt-md-0">
@@ -524,20 +547,32 @@
 				>
 					<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
 					<div class="flex-grow-1">
-						<h4 class="mb-2" style="color: var(--navy)">PlayStation 5</h4>
+						<h2 class="mb-2" style="color: var(--navy)">PlayStation 5</h2>
 						<p class="mb-1"><strong>Price:</strong> ₱30,000</p>
-						<div class="d-flex align-items-center gap-2">
-							<label for="qty2" class="form-label mb-0"
-								><strong>Quantity:</strong></label
-							>
-							<input
-								type="number"
-								id="qty2"
-								class="form-control form-control-sm"
-								value="2"
-								min="1"
-								style="width: 70px"
-							/>
+						<div class="quantity-wrapper">
+							<label class="form-label mb-3"><strong>Quantity:</strong></label>
+							<div class="input-group input-group-sm">
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.nextElementSibling.stepDown()"
+								>
+									-
+								</button>
+								<input
+									type="number"
+									class="form-control text-center border-dark"
+									value="1"
+									min="1"
+								/>
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.previousElementSibling.stepUp()"
+								>
+									+
+								</button>
+							</div>
 						</div>
 					</div>
 					<button class="btn btn-danger btn-sm mt-3 mt-md-0">
@@ -551,20 +586,32 @@
 				>
 					<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
 					<div class="flex-grow-1">
-						<h4 class="mb-2" style="color: var(--navy)">Mechanical Keyboard</h4>
+						<h2 class="mb-2" style="color: var(--navy)">Mechanical Keyboard</h2>
 						<p class="mb-1"><strong>Price:</strong> ₱5,000</p>
-						<div class="d-flex align-items-center gap-2">
-							<label for="qty3" class="form-label mb-0"
-								><strong>Quantity:</strong></label
-							>
-							<input
-								type="number"
-								id="qty3"
-								class="form-control form-control-sm"
-								value="1"
-								min="1"
-								style="width: 70px"
-							/>
+						<div class="quantity-wrapper">
+							<label class="form-label mb-3"><strong>Quantity:</strong></label>
+							<div class="input-group input-group-sm">
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.nextElementSibling.stepDown()"
+								>
+									-
+								</button>
+								<input
+									type="number"
+									class="form-control text-center border-dark"
+									value="1"
+									min="1"
+								/>
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.previousElementSibling.stepUp()"
+								>
+									+
+								</button>
+							</div>
 						</div>
 					</div>
 					<button class="btn btn-danger btn-sm mt-3 mt-md-0">
@@ -578,20 +625,32 @@
 				>
 					<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
 					<div class="flex-grow-1">
-						<h4 class="mb-2" style="color: var(--navy)">4K Gaming Monitor</h4>
+						<h2 class="mb-2" style="color: var(--navy)">4K Gaming Monitor</h2>
 						<p class="mb-1"><strong>Price:</strong> ₱20,000</p>
-						<div class="d-flex align-items-center gap-2">
-							<label for="qty4" class="form-label mb-0"
-								><strong>Quantity:</strong></label
-							>
-							<input
-								type="number"
-								id="qty4"
-								class="form-control form-control-sm"
-								value="1"
-								min="1"
-								style="width: 70px"
-							/>
+						<div class="quantity-wrapper">
+							<label class="form-label mb-3"><strong>Quantity:</strong></label>
+							<div class="input-group input-group-sm">
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.nextElementSibling.stepDown()"
+								>
+									-
+								</button>
+								<input
+									type="number"
+									class="form-control text-center border-dark"
+									value="1"
+									min="1"
+								/>
+								<button
+									class="btn btn-outline-dark py-0 px-3 fs-5"
+									type="button"
+									onclick="this.previousElementSibling.stepUp()"
+								>
+									+
+								</button>
+							</div>
 						</div>
 					</div>
 					<button class="btn btn-danger btn-sm mt-3 mt-md-0">
@@ -601,8 +660,8 @@
 
 				<!-- Total and Checkout -->
 				<div class="text-end mt-4">
-					<h4>Total: <span class="text-success fs-5">₱144,999</span></h4>
-					<a href="#" class="cta-cart mt-3 d-inline-block"
+					<h1 class="text-success mt-2">Total: <span>₱144,999</span></h1>
+					<a href="#" class="cta-cart mt-2 d-inline-block"
 						>Proceed to Checkout</a
 					>
 				</div>
