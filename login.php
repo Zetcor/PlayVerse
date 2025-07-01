@@ -40,6 +40,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["login"])) {
 			'username' => $user['username']
 		];
 
+		$_SESSION['customer_id'] = $user['customer_id'];
+
+
 		header("Location: welcome.php");
 		exit;
 	} else {
@@ -538,13 +541,13 @@ $conn->close();
 							<a class="nav-link" href="index.php"><i class="fa-solid fa-house"></i>HOME</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="offers.html"><i class="fa-solid fa-briefcase"></i>WHAT WE OFFER</a>
+							<a class="nav-link" href="offers.php"><i class="fa-solid fa-briefcase"></i>WHAT WE OFFER</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="about.html"><i class="fa-solid fa-users"></i>ABOUT US</a>
+							<a class="nav-link" href="about.php"><i class="fa-solid fa-users"></i>ABOUT US</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="cart.html"><i class="fa-solid fa-cart-shopping"></i>CART</a>
+							<a class="nav-link" href="cart.php"><i class="fa-solid fa-cart-shopping"></i>CART</a>
 						</li>
 						<li class="nav-item">
 							<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN

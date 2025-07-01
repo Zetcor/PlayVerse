@@ -1,24 +1,118 @@
+<?php
+session_start();
+
+$host = 'localhost';
+$user = 'root';
+$password = ''; // default in XAMPP
+$dbname = 'PlayVerse';
+
+// Redirect to login if not logged in
+if (!isset($_SESSION['customer_id'])) {
+	header("Location: login.php");
+	exit();
+}
+
+$customer_id = $_SESSION['customer_id'];
+
+// Connect to DB
+$conn = new mysqli($host, $user, $password, $dbname);
+if ($conn->connect_error) {
+	die("Connection failed: " . $conn->connect_error);
+}
+
+// Ensure cart exists for customer
+$cart_id = null;
+$cart_sql = "SELECT cart_id FROM cart WHERE customer_id = ?";
+$stmt = $conn->prepare($cart_sql);
+$stmt->bind_param("i", $customer_id);
+$stmt->execute();
+$stmt->bind_result($cart_id);
+if (!$stmt->fetch()) {
+	$stmt->close();
+	$insert_cart_sql = "INSERT INTO cart (customer_id) VALUES (?)";
+	$stmt2 = $conn->prepare($insert_cart_sql);
+	$stmt2->bind_param("i", $customer_id);
+	$stmt2->execute();
+	$cart_id = $stmt2->insert_id;
+	$stmt2->close();
+} else {
+	$stmt->close();
+}
+
+// Handle Add to Cart POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'], $_POST['quantity'])) {
+	$product_id = intval($_POST['product_id']);
+	$quantity = intval($_POST['quantity']);
+	if ($quantity < 1) {
+		$quantity = 1;
+	}
+
+	// Check if this product already in cart_items
+	$check_sql = "SELECT quantity FROM cart_items WHERE cart_id = ? AND product_id = ?";
+	$check_stmt = $conn->prepare($check_sql);
+	$check_stmt->bind_param("ii", $cart_id, $product_id);
+	$check_stmt->execute();
+	$check_stmt->bind_result($existing_quantity);
+	if ($check_stmt->fetch()) {
+		// Update quantity
+		$new_quantity = $existing_quantity + $quantity;
+		$check_stmt->close();
+
+		$update_sql = "UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?";
+		$update_stmt = $conn->prepare($update_sql);
+		$update_stmt->bind_param("iii", $new_quantity, $cart_id, $product_id);
+		$update_stmt->execute();
+		$update_stmt->close();
+	} else {
+		// Insert new item
+		$check_stmt->close();
+		$insert_sql = "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)";
+		$insert_stmt = $conn->prepare($insert_sql);
+		$insert_stmt->bind_param("iii", $cart_id, $product_id, $quantity);
+		$insert_stmt->execute();
+		$insert_stmt->close();
+	}
+
+	// Redirect to avoid form resubmission and show updated cart quantity
+	header("Location: offers.php");
+	exit();
+}
+
+// Fetch total quantity in cart for navbar badge
+$totalQuantity = 0;
+$sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
+$stmtQty = $conn->prepare($sqlQty);
+$stmtQty->bind_param("i", $cart_id);
+$stmtQty->execute();
+$stmtQty->bind_result($totalQuantity);
+$stmtQty->fetch();
+$stmtQty->close();
+
+if (!$totalQuantity) {
+	$totalQuantity = 0;
+}
+
+// Fetch products to display
+$sql = "SELECT * FROM products LIMIT 20";
+$result = $conn->query($sql);
+
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
 	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Offers</title>
-	<link
-		href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-		rel="stylesheet" />
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 	<link
 		href="https://db.onlinewebfonts.com/c/84d8d4c49f66a6a5abe1e0608ba764a2?family=Source+Sans+Pro"
 		rel="stylesheet" />
-	<link
-		href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap"
+	<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap"
 		rel="stylesheet" />
-	<script
-		src="https://kit.fontawesome.com/203f7bcb2a.js"
-		crossorigin="anonymous"></script>
+	<script src="https://kit.fontawesome.com/203f7bcb2a.js" crossorigin="anonymous"></script>
 	<link rel="stylesheet" href="offers.css" />
-
 	<style>
 		:root {
 			--light-gray: #f2f2f2;
@@ -421,6 +515,18 @@
 			color: var(--navy);
 			border-color: var(--pink);
 		}
+
+		.quantity-wrapper {
+			margin-top: 0.5rem;
+			width: 100px;
+			height: 30px;
+		}
+
+		.input-group input[type='number']::-webkit-inner-spin-button,
+		.input-group input[type='number']::-webkit-outer-spin-button {
+			-webkit-appearance: none;
+			margin: 0;
+		}
 	</style>
 </head>
 
@@ -429,40 +535,37 @@
 	<div class="scroll-container position-relative">
 		<nav class="navbar navbar-expand-lg sticky-top">
 			<div class="container-fluid px-5">
-				<a
-					class="navbar-brand d-flex align-items-center gap-2"
-					href="index.php">
+				<a class="navbar-brand d-flex align-items-center gap-2" href="index.php">
 					<img src="imgs/logo.png" alt="logo" style="height: 40px" />
 					<h1>PLAYVERSE</h1>
 				</a>
 
-				<button
-					class="navbar-toggler text-white"
-					type="button"
-					data-bs-toggle="collapse"
-					data-bs-target="#navbarContent"
-					aria-controls="navbarContent"
-					aria-expanded="false"
+				<button class="navbar-toggler text-white" type="button" data-bs-toggle="collapse"
+					data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false"
 					aria-label="Toggle navigation">
 					<i class="fa-solid fa-bars fa-lg" style="color: #00f5d4"></i>
 				</button>
 
-				<div
-					class="collapse navbar-collapse justify-content-end"
-					id="navbarContent">
+				<div class="collapse navbar-collapse justify-content-end" id="navbarContent">
 					<ul class="navbar-nav gap-3">
 						<li class="nav-item">
 							<a class="nav-link" href="index.php"><i class="fa-solid fa-house"></i>HOME</a>
 						</li>
 
 						<li class="nav-item">
-							<a class="nav-link active" aria-current="page" href="offers.php"><i class="fa-solid fa-briefcase"></i>WHAT WE OFFER</a>
+							<a class="nav-link active" aria-current="page" href="offers.php"><i
+									class="fa-solid fa-briefcase"></i>WHAT WE OFFER</a>
 						</li>
 						<li class="nav-item">
 							<a class="nav-link" href="about.php"><i class="fa-solid fa-users"></i>ABOUT US</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="cart.php"><i class="fa-solid fa-cart-shopping"></i>CART</a>
+							<a class="nav-link" href="cart.php">
+								<i class="fa-solid fa-cart-shopping"></i> CART
+								<?php if ($totalQuantity > 0): ?>
+									<span class="badge bg-danger rounded-pill ms-1"><?= $totalQuantity ?></span>
+								<?php endif; ?>
+							</a>
 						</li>
 						<li class="nav-item">
 							<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN
@@ -483,12 +586,9 @@
 					</p>
 				</div>
 
-				<div
-					class="d-flex justify-content-between align-items-center mt-2 mb-4 px-2">
+				<div class="d-flex justify-content-between align-items-center mt-2 mb-4 px-2">
 					<h2 class="display-6 fw-bold text-uppercase">Sort Products</h2>
-					<select
-						class="form-select sort-dropdown w-auto"
-						aria-label="Sort Products">
+					<select class="form-select sort-dropdown w-auto" aria-label="Sort Products">
 						<option selected>Sort by</option>
 						<option value="newest">Newest</option>
 						<option value="cheapest">Cheapest</option>
@@ -497,594 +597,54 @@
 				</div>
 
 				<div class="row g-4">
-					<!-- Product 1 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										High-end graphics card designed for 4K gaming, real-time
-										ray tracing, and AI-enhanced performance.
-									</p>
+					<?php $productIndex = 1; ?>
+					<?php while ($row = $result->fetch_assoc()): ?>
+						<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+							<div class="card h-100 promotion-card text-light">
+								<div class="promo-img-box">
+									<a href="product.php">
+										<img src="imgs/product<?= $productIndex ?>.jpg" class="promo-img"
+											alt="<?= htmlspecialchars($row['name']) ?>" />
+									</a>
 								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
+								<div class="card-body d-flex flex-column justify-content-between">
+									<div>
+										<h5 class="card-title"><?= htmlspecialchars($row['name']) ?></h5>
+										<div class="d-flex justify-content-between mb-2">
+											<p class="fw-semibold mb-0">₱<?= number_format($row['price'], 2) ?></p>
+											<small class="text-light">Rating: <?= $row['rating'] ?>/100</small>
+										</div>
+										<p class="card-text"><?= htmlspecialchars($row['description']) ?></p>
+										<small
+											class="text-secondary">Date Added: <?= date('F j, Y', strtotime($row['date_added'])) ?></small>
+									</div>
 
-					<!-- Product 2 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column text-light border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/ssd.jpg"
-										class="promo-img"
-										alt="Samsung 980 SSD" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Samsung 980 SSD 1TB</h5>
-									<p class="fw-semibold text-light">₱4,995</p>
-									<p class="card-text">
-										Fast NVMe solid-state drive offering reliable storage with
-										quick boot times and efficient data transfers.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
+									<form method="post" class="row mt-3 g-2">
+										<input type="hidden" name="product_id" value="<?= $row['product_id'] ?>" />
+										<div class="col-6">
+											<div class="input-group input-group-sm">
+												<button class="btn btn-outline-light" type="button"
+													onclick="this.nextElementSibling.stepDown()">-</button>
+												<input type="number" name="quantity" class="form-control text-center border-light"
+													value="1" min="1" />
+												<button class="btn btn-outline-light" type="button"
+													onclick="this.previousElementSibling.stepUp()">+</button>
+											</div>
+										</div>
+										<div class="col-6">
+											<button type="submit" class="btn btn-outline-light btn-sm w-100">
+												Add to Cart
+											</button>
+										</div>
+									</form>
 
-					<!-- Product 3 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/i9.jpg"
-										class="promo-img"
-										alt="Intel Core i9 CPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Intel Core i9 14th Gen</h5>
-									<p class="fw-semibold text-light">₱34,500</p>
-									<p class="card-text">
-										Powerful 14th generation processor built for intensive
-										multitasking, gaming, and productivity workloads.
-									</p>
 								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
 							</div>
 						</div>
-					</div>
-
-					<!-- Product 4 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										Advanced GPU engineered for ultra-high frame rates,
-										immersive visuals, and next-gen gaming experiences.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
+					<?php $productIndex++;
+					endwhile; ?>
 				</div>
 
-				<div class="row g-4 mt-3">
-					<!-- Product 1 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										High-end graphics card designed for 4K gaming, real-time
-										ray tracing, and AI-enhanced performance.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 2 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column text-light border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/ssd.jpg"
-										class="promo-img"
-										alt="Samsung 980 SSD" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Samsung 980 SSD 1TB</h5>
-									<p class="fw-semibold text-light">₱4,995</p>
-									<p class="card-text">
-										Fast NVMe solid-state drive offering reliable storage with
-										quick boot times and efficient data transfers.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 3 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/i9.jpg"
-										class="promo-img"
-										alt="Intel Core i9 CPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Intel Core i9 14th Gen</h5>
-									<p class="fw-semibold text-light">₱34,500</p>
-									<p class="card-text">
-										Powerful 14th generation processor built for intensive
-										multitasking, gaming, and productivity workloads.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 4 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										Advanced GPU engineered for ultra-high frame rates,
-										immersive visuals, and next-gen gaming experiences.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="row g-4 mt-3">
-					<!-- Product 1 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										High-end graphics card designed for 4K gaming, real-time
-										ray tracing, and AI-enhanced performance.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 2 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column text-light border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/ssd.jpg"
-										class="promo-img"
-										alt="Samsung 980 SSD" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Samsung 980 SSD 1TB</h5>
-									<p class="fw-semibold text-light">₱4,995</p>
-									<p class="card-text">
-										Fast NVMe solid-state drive offering reliable storage with
-										quick boot times and efficient data transfers.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 3 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/i9.jpg"
-										class="promo-img"
-										alt="Intel Core i9 CPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Intel Core i9 14th Gen</h5>
-									<p class="fw-semibold text-light">₱34,500</p>
-									<p class="card-text">
-										Powerful 14th generation processor built for intensive
-										multitasking, gaming, and productivity workloads.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 4 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										Advanced GPU engineered for ultra-high frame rates,
-										immersive visuals, and next-gen gaming experiences.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="row g-4 mt-3">
-					<!-- Product 1 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										High-end graphics card designed for 4K gaming, real-time
-										ray tracing, and AI-enhanced performance.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 2 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column text-light border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/ssd.jpg"
-										class="promo-img"
-										alt="Samsung 980 SSD" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Samsung 980 SSD 1TB</h5>
-									<p class="fw-semibold text-light">₱4,995</p>
-									<p class="card-text">
-										Fast NVMe solid-state drive offering reliable storage with
-										quick boot times and efficient data transfers.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 3 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/i9.jpg"
-										class="promo-img"
-										alt="Intel Core i9 CPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Intel Core i9 14th Gen</h5>
-									<p class="fw-semibold text-light">₱34,500</p>
-									<p class="card-text">
-										Powerful 14th generation processor built for intensive
-										multitasking, gaming, and productivity workloads.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 4 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										Advanced GPU engineered for ultra-high frame rates,
-										immersive visuals, and next-gen gaming experiences.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="row g-4 mt-3">
-					<!-- Product 1 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										High-end graphics card designed for 4K gaming, real-time
-										ray tracing, and AI-enhanced performance.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 2 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column text-light border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/ssd.jpg"
-										class="promo-img"
-										alt="Samsung 980 SSD" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Samsung 980 SSD 1TB</h5>
-									<p class="fw-semibold text-light">₱4,995</p>
-									<p class="card-text">
-										Fast NVMe solid-state drive offering reliable storage with
-										quick boot times and efficient data transfers.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 3 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/i9.jpg"
-										class="promo-img"
-										alt="Intel Core i9 CPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">Intel Core i9 14th Gen</h5>
-									<p class="fw-semibold text-light">₱34,500</p>
-									<p class="card-text">
-										Powerful 14th generation processor built for intensive
-										multitasking, gaming, and productivity workloads.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-
-					<!-- Product 4 -->
-					<div class="col-md-3">
-						<div
-							class="card h-100 d-flex flex-column border-0 promotion-card">
-							<div class="promo-img-box">
-								<a href="product.php">
-									<img
-										src="imgs/rtx4080.jpg"
-										class="promo-img"
-										alt="RTX 4080 GPU" />
-								</a>
-							</div>
-							<div
-								class="card-body d-flex flex-column justify-content-between">
-								<div>
-									<h5 class="card-title">RTX 4080 Gaming GPU</h5>
-									<p class="fw-semibold text-light">₱59,999</p>
-									<p class="card-text">
-										Advanced GPU engineered for ultra-high frame rates,
-										immersive visuals, and next-gen gaming experiences.
-									</p>
-								</div>
-								<a
-									href="#"
-									class="btn btn-outline-light btn-sm mt-3 align-self-start">Add to Cart</a>
-							</div>
-						</div>
-					</div>
-				</div>
 			</div>
 		</section>
 
