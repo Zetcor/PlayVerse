@@ -94,8 +94,26 @@ if (!$totalQuantity) {
 
 // Fetch products to display
 $sql = "SELECT * FROM products LIMIT 20";
-$result = $conn->query($sql);
 
+// Handle sort logic
+$sort_option = $_GET['sort'] ?? '';
+
+switch ($sort_option) {
+	case 'newest':
+		$sql = "SELECT * FROM products ORDER BY date_added DESC";
+		break;
+	case 'cheapest':
+		$sql = "SELECT * FROM products ORDER BY price ASC";
+		break;
+	case 'recommended':
+		$sql = "SELECT * FROM products ORDER BY rating DESC";
+		break;
+	default:
+		$sql = "SELECT * FROM products";
+		break;
+}
+
+$result = $conn->query($sql);
 ?>
 
 <!DOCTYPE html>
@@ -445,7 +463,6 @@ $result = $conn->query($sql);
 		/* Promotions Section */
 		.promotions-section {
 			background-color: var(--light-gray);
-			/* same as --navy */
 			color: var(--navy);
 		}
 
@@ -483,17 +500,19 @@ $result = $conn->query($sql);
 			color: var(--light-gray);
 		}
 
-		/* Container for image to fix size */
 		.promo-img-box {
+			background-color: var(--light-gray);
 			height: 250px;
-			/* or 250px depending on preference */
 			width: 100%;
 			overflow: hidden;
 			border-top-left-radius: var(--border-radius);
 			border-top-right-radius: var(--border-radius);
 		}
 
-		/* Ensure image fills the container */
+		.promo-img-box a {
+			color: var(--navy);
+		}
+
 		.promo-img {
 			height: 100%;
 			width: 100%;
@@ -526,6 +545,36 @@ $result = $conn->query($sql);
 		.input-group input[type='number']::-webkit-outer-spin-button {
 			-webkit-appearance: none;
 			margin: 0;
+		}
+
+		.cta-cart {
+			background-color: var(--purple);
+			color: var(--light-gray);
+			padding: 2px 15px;
+			border: solid 5px var(--purple);
+			transition: all 0.3s ease;
+			border-radius: 4px;
+			font-weight: 700;
+			font-family: 'Rajdhani', sans-serif;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+			width: 100%;
+			height: 32px;
+			text-decoration: none;
+		}
+
+		.cta-cart:hover {
+			background-color: var(--pink);
+			border: solid 5px var(--pink);
+			border-style: outset;
+			color: var(--navy);
+		}
+
+		.cta-cart:active {
+			transform: translateY(-1px);
+			box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
 		}
 	</style>
 </head>
@@ -561,7 +610,7 @@ $result = $conn->query($sql);
 						</li>
 						<li class="nav-item">
 							<a class="nav-link" href="cart.php">
-								<i class="fa-solid fa-cart-shopping"></i> CART
+								<i class="fa-solid fa-cart-shopping"></i>CART
 								<?php if ($totalQuantity > 0): ?>
 									<span class="badge bg-danger rounded-pill ms-1"><?= $totalQuantity ?></span>
 								<?php endif; ?>
@@ -588,12 +637,14 @@ $result = $conn->query($sql);
 
 				<div class="d-flex justify-content-between align-items-center mt-2 mb-4 px-2">
 					<h2 class="display-6 fw-bold text-uppercase">Sort Products</h2>
-					<select class="form-select sort-dropdown w-auto" aria-label="Sort Products">
-						<option selected>Sort by</option>
-						<option value="newest">Newest</option>
-						<option value="cheapest">Cheapest</option>
-						<option value="recommended">Most Recommended</option>
-					</select>
+					<form method="get" class="d-flex justify-content-end mb-4">
+						<select class="form-select w-auto" name="sort" onchange="this.form.submit()">
+							<option value="" <?= $sort_option === '' ? 'selected' : '' ?>>Sort by</option>
+							<option value="newest" <?= $sort_option === 'newest' ? 'selected' : '' ?>>Newest</option>
+							<option value="cheapest" <?= $sort_option === 'cheapest' ? 'selected' : '' ?>>Cheapest</option>
+							<option value="recommended" <?= $sort_option === 'recommended' ? 'selected' : '' ?>>Most Recommended</option>
+						</select>
+					</form>
 				</div>
 
 				<div class="row g-4">
@@ -603,8 +654,7 @@ $result = $conn->query($sql);
 							<div class="card h-100 promotion-card text-light">
 								<div class="promo-img-box">
 									<a href="product.php">
-										<img src="imgs/product<?= $productIndex ?>.jpg" class="promo-img"
-											alt="<?= htmlspecialchars($row['name']) ?>" />
+										<img src="imgs/<?= htmlspecialchars($row['image']) ?>" class="promo-img" alt="<?= htmlspecialchars($row['name']) ?>" />
 									</a>
 								</div>
 								<div class="card-body d-flex flex-column justify-content-between">
@@ -612,7 +662,7 @@ $result = $conn->query($sql);
 										<h5 class="card-title"><?= htmlspecialchars($row['name']) ?></h5>
 										<div class="d-flex justify-content-between mb-2">
 											<p class="fw-semibold mb-0">₱<?= number_format($row['price'], 2) ?></p>
-											<small class="text-light">Rating: <?= $row['rating'] ?>/100</small>
+											<small class="text-light pt-2">Rating: <?= $row['rating'] ?>/100</small>
 										</div>
 										<p class="card-text"><?= htmlspecialchars($row['description']) ?></p>
 										<small
@@ -623,16 +673,16 @@ $result = $conn->query($sql);
 										<input type="hidden" name="product_id" value="<?= $row['product_id'] ?>" />
 										<div class="col-6">
 											<div class="input-group input-group-sm">
-												<button class="btn btn-outline-light" type="button"
+												<button class="btn btn-outline-light" style="padding: 0 12px;" type="button"
 													onclick="this.nextElementSibling.stepDown()">-</button>
-												<input type="number" name="quantity" class="form-control text-center border-light"
+												<input type="number" name="quantity" class="form-control text-center" style="border-color: var(--teal);"
 													value="1" min="1" />
-												<button class="btn btn-outline-light" type="button"
+												<button class="btn btn-outline-light" style="padding: 0 12px;" type="button"
 													onclick="this.previousElementSibling.stepUp()">+</button>
 											</div>
 										</div>
 										<div class="col-6">
-											<button type="submit" class="btn btn-outline-light btn-sm w-100">
+											<button type="submit" class="cta-cart w-100">
 												Add to Cart
 											</button>
 										</div>

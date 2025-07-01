@@ -1,3 +1,54 @@
+<?php
+session_start();
+
+$host = 'localhost';
+$user = 'root';
+$password = '';
+$dbname = 'PlayVerse';
+
+$totalQuantity = 0;
+
+if (isset($_SESSION['customer_id'])) {
+	$customer_id = $_SESSION['customer_id'];
+
+	$conn = new mysqli($host, $user, $password, $dbname);
+	if ($conn->connect_error) {
+		die("Connection failed: " . $conn->connect_error);
+	}
+
+	$cart_id = null;
+	$cart_sql = "SELECT cart_id FROM cart WHERE customer_id = ?";
+	$stmt = $conn->prepare($cart_sql);
+	$stmt->bind_param("i", $customer_id);
+	$stmt->execute();
+	$stmt->bind_result($cart_id);
+
+	if (!$stmt->fetch()) {
+		$stmt->close();
+		$insert_cart_sql = "INSERT INTO cart (customer_id) VALUES (?)";
+		$stmt2 = $conn->prepare($insert_cart_sql);
+		$stmt2->bind_param("i", $customer_id);
+		$stmt2->execute();
+		$cart_id = $stmt2->insert_id;
+		$stmt2->close();
+	} else {
+		$stmt->close();
+	}
+
+	$sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
+	$stmtQty = $conn->prepare($sqlQty);
+	$stmtQty->bind_param("i", $cart_id);
+	$stmtQty->execute();
+	$stmtQty->bind_result($totalQuantity);
+	$stmtQty->fetch();
+	$stmtQty->close();
+
+	if (!$totalQuantity) {
+		$totalQuantity = 0;
+	}
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -462,7 +513,12 @@
 							<a class="nav-link" href="about.php"><i class="fa-solid fa-users"></i>ABOUT US</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="cart.php"><i class="fa-solid fa-cart-shopping"></i>CART</a>
+							<a class="nav-link" href="cart.php">
+								<i class="fa-solid fa-cart-shopping"></i>CART
+								<?php if (isset($_SESSION['customer_id']) && $totalQuantity > 0): ?>
+									<span class="badge bg-danger rounded-pill ms-1"><?= $totalQuantity ?></span>
+								<?php endif; ?>
+							</a>
 						</li>
 						<li class="nav-item">
 							<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN
