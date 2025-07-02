@@ -1,3 +1,128 @@
+<?php
+session_start();
+$host = 'localhost';
+$user = 'root';
+$password = '';
+$dbname = 'PlayVerse';
+
+$conn = new mysqli($host, $user, $password, $dbname);
+if ($conn->connect_error) {
+	die("Connection failed: " . $conn->connect_error);
+}
+
+$customer = null;
+$cart_items = [];
+$totalPrice = 0;
+$totalQuantity = 0;
+$cart_id = null;
+
+// Handle form submission
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SESSION['customer_id'])) {
+	$customer_id = $_SESSION['customer_id'];
+	$cart_id = $_POST['cart_id'];
+	$shipping_address = $_POST['shipping_address'];
+	$total_amount = $_POST['total_amount'];
+	$payment_method = $_POST['payment_method'];
+	$transaction_date = date('Y-m-d');
+
+	// Insert into transactions table
+	$stmt = $conn->prepare("INSERT INTO transactions (customer_id, cart_id, shipping_address, total_amount, mode_of_payment, transaction_date) VALUES (?, ?, ?, ?, ?, ?)");
+	$stmt->bind_param("iisdss", $customer_id, $cart_id, $shipping_address, $total_amount, $payment_method, $transaction_date);
+
+	if ($stmt->execute()) {
+		// Clear cart items
+		$clear_stmt = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ?");
+		$clear_stmt->bind_param("i", $cart_id);
+		$clear_stmt->execute();
+		$clear_stmt->close();
+
+		echo "<script>alert('Order placed successfully!'); window.location.href='index.php';</script>";
+		exit;
+	} else {
+		echo "<script>alert('Error placing order: " . $stmt->error . "');</script>";
+	}
+
+	$stmt->close();
+}
+
+// Fetch customer and cart info if logged in
+if (isset($_SESSION['customer_id'])) {
+	$customer_id = $_SESSION['customer_id'];
+
+	// Get customer info
+	$stmt = $conn->prepare("SELECT * FROM customers WHERE customer_id = ?");
+	$stmt->bind_param("i", $customer_id);
+	$stmt->execute();
+	$result = $stmt->get_result();
+	if ($result->num_rows > 0) {
+		$customer = $result->fetch_assoc();
+	}
+	$stmt->close();
+
+	// Get cart ID
+	$stmt = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ?");
+	$stmt->bind_param("i", $customer_id);
+	$stmt->execute();
+	$stmt->bind_result($cart_id);
+	if (!$stmt->fetch()) {
+		$stmt->close();
+		$stmt = $conn->prepare("INSERT INTO cart (customer_id) VALUES (?)");
+		$stmt->bind_param("i", $customer_id);
+		$stmt->execute();
+		$cart_id = $stmt->insert_id;
+	}
+	$stmt->close();
+
+	// Get cart items
+	$stmt = $conn->prepare("
+		SELECT ci.product_id, ci.quantity, p.name, p.price, p.image
+		FROM cart_items ci
+		JOIN products p ON ci.product_id = p.product_id
+		WHERE ci.cart_id = ?
+	");
+	$stmt->bind_param("i", $cart_id);
+	$stmt->execute();
+	$resItems = $stmt->get_result();
+	while ($row = $resItems->fetch_assoc()) {
+		$row['subtotal'] = $row['price'] * $row['quantity'];
+		$totalPrice += $row['subtotal'];
+		$cart_items[] = $row;
+	}
+	$stmt->close();
+
+	// Calculate total quantity
+	$totalQuantity = array_sum(array_column($cart_items, 'quantity'));
+
+	// Format shipping address
+	$ship_address = $customer['street'] . ', ' . $customer['city'] . ', ' . $customer['province'] . ', ' . $customer['country'] . ' ' . $customer['zipcode'];
+}
+?>
+
+<!-- Continue your HTML output here like before -->
+<!-- Replace your existing form and button area with this: -->
+
+<?php if ($customer && count($cart_items)): ?>
+	<form method="POST" action="checkout.php">
+		<select name="payment_method" class="form-select mb-3" required>
+			<option value="" disabled selected>Select method</option>
+			<option value="Credit/Debit">Credit/Debit Card</option>
+			<option value="Paypal">PayPal</option>
+			<option value="Gcash">GCash</option>
+		</select>
+
+		<!-- Hidden fields -->
+		<input type="hidden" name="shipping_address" value="<?= htmlspecialchars($ship_address) ?>">
+		<input type="hidden" name="total_amount" value="<?= number_format($totalPrice * 1.12, 2, '.', '') ?>">
+		<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
+
+		<div class="mt-4">
+			<button type="submit" class="btn cta-cart w-100">Place Order</button>
+		</div>
+	</form>
+<?php endif; ?>
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -521,7 +646,12 @@
 						<a class="nav-link" href="about.php"><i class="fa-solid fa-users"></i>ABOUT US</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link" href="cart.php"><i class="fa-solid fa-cart-shopping"></i>CART</a>
+						<a class="nav-link active" aria-current="page" href="cart.php">
+							<i class="fa-solid fa-cart-shopping"></i>CART
+							<?php if (isset($_SESSION['customer_id']) && $totalQuantity > 0): ?>
+								<span class="badge bg-danger rounded-pill ms-1"><?= $totalQuantity ?></span>
+							<?php endif; ?>
+						</a>
 					</li>
 					<li class="nav-item">
 						<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN
@@ -535,142 +665,101 @@
 	<!-- Checkout Section -->
 	<section class="checkout-section py-5">
 		<div class="container">
-			<div class="text-center mb-4">
-				<h2 class="display-5 fw-bold" style="color: #8f43ec">CHECKOUT</h2>
-			</div>
+			<h2 class="text-center display-5 fw-bold mb-5" style="color:#8f43ec;">CHECKOUT</h2>
 
 			<div class="row g-5">
-				<!-- Left: Customer Info -->
+				<!-- Customer Info -->
 				<div class="col-md-7">
 					<div class="bg-white p-4 rounded shadow">
-						<h2 class="mb-4" style="color: var(--navy)">
-							Customer Information
-						</h2>
-						<form>
-							<div class="mb-3">
-								<label for="name" class="form-label">Full Name</label>
-								<input type="text" class="form-control" id="name" required />
-							</div>
-							<div class="mb-3">
-								<label for="email" class="form-label">Email Address</label>
-								<input
-									type="email"
-									class="form-control"
-									id="email"
-									required />
-							</div>
-							<div class="mb-3">
-								<label for="phone" class="form-label">Phone Number</label>
-								<input type="tel" class="form-control" id="phone" required />
-							</div>
+						<h2 style="color:#0a1128;">Customer Information</h2>
+						<div class="mb-3">
+							<label for="name" class="form-label">Full Name</label>
+							<input type="text" class="form-control" id="name" value="<?= htmlspecialchars($customer['full_name'] ?? '') ?>" />
+						</div>
+						<div class="mb-3">
+							<label for="email" class="form-label">Email Address</label>
+							<input type="email" class="form-control" id="email" value="<?= htmlspecialchars($customer['email'] ?? '') ?>" />
+						</div>
+						<div class="mb-3">
+							<label for="phone" class="form-label">Phone Number</label>
+							<input type="tel" class="form-control" id="phone" value="<?= htmlspecialchars($customer['contact_no'] ?? '') ?>" />
+						</div>
 
-							<h2 class="mt-4 mb-3" style="color: var(--navy)">
-								Shipping Address
-							</h2>
-							<div class="mb-3">
-								<label for="unit" class="form-label">Unit/Building</label>
-								<input type="text" class="form-control" id="unit" required />
-							</div>
-							<div class="mb-3">
-								<label for="street" class="form-label">Street</label>
-								<input
-									type="text"
-									class="form-control"
-									id="street"
-									required />
-							</div>
-							<div class="mb-3">
-								<label for="city" class="form-label">City</label>
-								<input type="text" class="form-control" id="city" required />
-							</div>
-							<div class="mb-3">
-								<label for="zip" class="form-label">Zip Code</label>
-								<input type="text" class="form-control" id="zip" required />
-							</div>
+						<?php
+						$ship_address = $customer['street'] . ', ' . $customer['city'] . ', ' . $customer['province'] . ', ' . $customer['country'] . ' ' . $customer['zipcode'];
+						?>
 
-							<h2 class="mt-4 mb-3" style="color: var(--navy)">
-								Payment Method
-							</h2>
-							<div class="mb-3">
-								<select class="form-select" id="paymentMethod" required>
-									<option value="" disabled selected>
-										Select a payment method
-									</option>
-									<option value="credit">Credit/Debit Card</option>
-									<option value="paypal">PayPal</option>
-									<option value="gcash">GCash</option>
-								</select>
-							</div>
+						<div class="mb-3">
+							<label for="shippingadd" class="form-label">Shipping Address</label>
+							<textarea class="form-control" name="shippingadd" id="shippingadd" rows="2"><?= htmlspecialchars($ship_address) ?></textarea>
+						</div>
+
+						<h2 class="mt-4" style="color:#0a1128;">Payment Method</h2>
+						<form method="POST" action="place_order.php">
+							<select name="payment_method" class="form-select mb-3" required>
+								<option value="" disabled selected>Select method</option>
+								<option value="credit">Credit/Debit Card</option>
+								<option value="paypal">PayPal</option>
+								<option value="gcash">GCash</option>
+							</select>
 						</form>
 					</div>
 				</div>
 
-				<!-- Right: Order Summary -->
+				<!-- Order Summary -->
+				<!-- Order Summary -->
 				<div class="col-md-5">
 					<div class="bg-white p-4 rounded shadow">
-						<h2 class="mb-4" style="color: var(--navy)">Order Summary</h2>
+						<h2 style="color:#0a1128;">Order Summary</h2>
+						<?php if (count($cart_items)): ?>
+							<?php foreach ($cart_items as $item): ?>
+								<div class="d-flex align-items-center mb-3">
+									<div class="summary-img-box me-3">
+										<img src="imgs/<?= htmlspecialchars($item['image']) ?>" class="summary-img">
+									</div>
+									<div class="flex-grow-1 d-flex justify-content-between">
+										<span><?= htmlspecialchars($item['name']) ?> (x<?= $item['quantity'] ?>)</span>
+										<span>₱<?= number_format($item['subtotal'], 2) ?></span>
+									</div>
+								</div>
+							<?php endforeach; ?>
+							<hr>
+							<div class="d-flex justify-content-between fs-6">
+								<span>Subtotal</span>
+								<span>₱<?= number_format($totalPrice, 2) ?></span>
+							</div>
+							<div class="d-flex justify-content-between fs-6">
+								<?php $vat = $totalPrice * 0.12 ?>
+								<span>VAT(12%)</span>
+								<span><?= number_format($vat, 2) ?></span>
+							</div>
+							<hr>
+							<div class="d-flex justify-content-between fw-bold fs-4 mt-4">
+								<span>Total</span>
+								<span class="text-success">₱<?= number_format($totalPrice + $vat, 2) ?></span>
+							</div>
 
-						<div class="d-flex align-items-center mb-3">
-							<div class="summary-img-box me-3">
-								<img
-									src="imgs/rtx4080.jpg"
-									alt="Product"
-									class="summary-img" />
-							</div>
-							<div class="flex-grow-1 d-flex justify-content-between">
-								<span>RTX 4080 Gaming GPU (x1)</span>
-								<span>₱59,999</span>
-							</div>
-						</div>
+							<!-- ✅ Submit order form -->
+							<form method="POST" action="">
+								<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
+								<input type="hidden" name="shipping_address" value="<?= htmlspecialchars($ship_address) ?>">
+								<input type="hidden" name="total_amount" value="<?= number_format($totalPrice + $vat, 2, '.', '') ?>">
+								<select name="payment_method" class="form-select mt-3 mb-3" required>
+									<option value="" disabled selected>Select method</option>
+									<option value="Credit/Debit">Credit/Debit Card</option>
+									<option value="Paypal">PayPal</option>
+									<option value="Gcash">GCash</option>
+								</select>
+								<button type="submit" name="place_order" class="btn cta-cart w-100">Place Order</button>
+							</form>
 
-						<div class="d-flex align-items-center mb-3">
-							<div class="summary-img-box me-3">
-								<img
-									src="imgs/rtx4080.jpg"
-									alt="Product"
-									class="summary-img" />
-							</div>
-							<div class="flex-grow-1 d-flex justify-content-between">
-								<span>PlayStation 5 (x2)</span>
-								<span>₱60,000</span>
-							</div>
-						</div>
-
-						<div class="d-flex align-items-center mb-3">
-							<div class="summary-img-box me-3">
-								<img
-									src="imgs/rtx4080.jpg"
-									alt="Product"
-									class="summary-img" />
-							</div>
-							<div class="flex-grow-1 d-flex justify-content-between">
-								<span>Mechanical Keyboard (x1)</span>
-								<span>₱5,000</span>
-							</div>
-						</div>
-
-						<div class="d-flex align-items-center mb-3">
-							<div class="summary-img-box me-3">
-								<img
-									src="imgs/rtx4080.jpg"
-									alt="Product"
-									class="summary-img" />
-							</div>
-							<div class="flex-grow-1 d-flex justify-content-between">
-								<span>4K Gaming Monitor (x1)</span>
-								<span>₱20,000</span>
-							</div>
-						</div>
-
-						<hr />
-						<div class="d-flex justify-content-between fs-5 fw-bold">
-							<span>Total</span>
-							<span class="text-success">₱144,999</span>
-						</div>
-
-						<a href="#" class="cta-cart mt-4 d-block text-center">Place Order</a>
+						<?php else: ?>
+							<div class="alert alert-warning">Your cart is empty.</div>
+						<?php endif; ?>
 					</div>
 				</div>
+
+
 			</div>
 		</div>
 	</section>

@@ -74,7 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'], $_POST[
 	}
 
 	// Redirect to avoid form resubmission and show updated cart quantity
-	header("Location: offers.php");
+	$redirectSort = isset($_GET['sort']) ? $_GET['sort'] : '';
+	header("Location: offers.php" . ($redirectSort ? "?sort=" . urlencode($redirectSort) : ""));
+
 	exit();
 }
 
@@ -669,7 +671,7 @@ $result = $conn->query($sql);
 											class="text-secondary">Date Added: <?= date('F j, Y', strtotime($row['date_added'])) ?></small>
 									</div>
 
-									<form method="post" class="row mt-3 g-2">
+									<form method="post" action="offers.php?sort=<?= urlencode($sort_option) ?>" class="row mt-3 g-2">
 										<input type="hidden" name="product_id" value="<?= $row['product_id'] ?>" />
 										<div class="col-6">
 											<div class="input-group input-group-sm">

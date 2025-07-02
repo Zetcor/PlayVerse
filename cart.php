@@ -19,6 +19,7 @@ if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
 }
 
+// Get or create cart
 $cart_id = null;
 $cart_sql = "SELECT cart_id FROM cart WHERE customer_id = ?";
 $stmt = $conn->prepare($cart_sql);
@@ -37,6 +38,46 @@ if (!$stmt->fetch()) {
 	$stmt->close();
 }
 
+// ✅ Handle item removal
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['remove_item'], $_POST['product_id'])) {
+	$product_id = intval($_POST['product_id']);
+	$stmtRemove = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?");
+	$stmtRemove->bind_param("ii", $cart_id, $product_id);
+	$stmtRemove->execute();
+	$stmtRemove->close();
+
+	header("Location: cart.php");
+	exit();
+}
+
+// ✅ Handle add/subtract quantity via GET
+if (isset($_GET['add']) || isset($_GET['sub'])) {
+	$changeProductId = isset($_GET['add']) ? intval($_GET['add']) : intval($_GET['sub']);
+	$changeType = isset($_GET['add']) ? 'add' : 'sub';
+
+	$stmtQty = $conn->prepare("SELECT quantity FROM cart_items WHERE cart_id = ? AND product_id = ?");
+	$stmtQty->bind_param("ii", $cart_id, $changeProductId);
+	$stmtQty->execute();
+	$stmtQty->bind_result($currentQty);
+	if ($stmtQty->fetch()) {
+		$stmtQty->close();
+
+		$newQty = $changeType === 'add' ? $currentQty + 1 : max(1, $currentQty - 1);
+
+		$stmtUpdate = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?");
+		$stmtUpdate->bind_param("iii", $newQty, $cart_id, $changeProductId);
+		$stmtUpdate->execute();
+		$stmtUpdate->close();
+	} else {
+		$stmtQty->close();
+	}
+
+	// 🔁 Refresh and scroll to the product
+	header("Location: cart.php#product-$changeProductId");
+	exit();
+}
+
+// ✅ Get total quantity
 $totalQuantity = 0;
 $sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
 $stmtQty = $conn->prepare($sqlQty);
@@ -49,7 +90,40 @@ $stmtQty->close();
 if (!$totalQuantity) {
 	$totalQuantity = 0;
 }
+
+// ✅ Fetch cart items
+$cart_items = [];
+$totalPrice = 0;
+
+$sqlItems = "
+	SELECT 
+		p.product_id,
+		p.name,
+		p.price,
+		p.description,
+		p.category,
+		p.rating,
+		p.date_added,
+		p.image,
+		ci.quantity
+	FROM cart_items ci
+	JOIN products p ON ci.product_id = p.product_id
+	WHERE ci.cart_id = ?
+";
+
+$stmtItems = $conn->prepare($sqlItems);
+$stmtItems->bind_param("i", $cart_id);
+$stmtItems->execute();
+$resultItems = $stmtItems->get_result();
+
+while ($row = $resultItems->fetch_assoc()) {
+	$cart_items[] = $row;
+	$totalPrice += $row['price'] * $row['quantity'];
+}
+
+$stmtItems->close();
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -432,8 +506,8 @@ if (!$totalQuantity) {
 		}
 
 		.cart-img {
-			width: 120px;
-			height: 120px;
+			width: 140px;
+			height: 140px;
 			object-fit: contain;
 			border-radius: var(--border-radius);
 			box-shadow: var(--box-shadow);
@@ -478,6 +552,10 @@ if (!$totalQuantity) {
 		.input-group input[type='number']::-webkit-outer-spin-button {
 			-webkit-appearance: none;
 			margin: 0;
+		}
+
+		[id] {
+			scroll-margin-top: 100px;
 		}
 	</style>
 </head>
@@ -537,158 +615,55 @@ if (!$totalQuantity) {
 	<section class="cart-section py-5">
 		<div class="container">
 			<div class="text-center mb-4">
-				<h2 class="display-5 fw-bold" style="color: #8f43ec">
-					SHOPPING CART
-				</h2>
+				<h2 class="display-5 fw-bold" style="color: #8f43ec">SHOPPING CART</h2>
 			</div>
 
-			<!-- Cart Item 1 -->
-			<div
-				class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-				<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
-				<div class="flex-grow-1">
-					<h2 class="mb-2" style="color: var(--navy)">RTX 4080 Gaming GPU</h2>
-					<p class="mb-1"><strong>Price:</strong> ₱59,999</p>
-					<div class="quantity-wrapper">
-						<label class="form-label mb-1"><strong>Quantity:</strong></label>
-						<div class="input-group input-group-sm">
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.nextElementSibling.stepDown()">
-								-
-							</button>
-							<input
-								type="number"
-								class="form-control text-center border-dark"
-								value="1"
-								min="1" />
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.previousElementSibling.stepUp()">
-								+
-							</button>
-						</div>
-					</div>
-				</div>
-				<button class="btn btn-danger btn-sm mt-3 mt-md-0">
-					<i class="fa-solid fa-trash"></i>Remove
-				</button>
-			</div>
+			<?php if (count($cart_items) > 0): ?>
+				<?php foreach ($cart_items as $item): ?>
+					<div
+						id="product-<?= $item['product_id'] ?>"
+						class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
 
-			<!-- Cart Item 2 -->
-			<div
-				class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-				<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
-				<div class="flex-grow-1">
-					<h2 class="mb-2" style="color: var(--navy)">PlayStation 5</h2>
-					<p class="mb-1"><strong>Price:</strong> ₱30,000</p>
-					<div class="quantity-wrapper">
-						<label class="form-label mb-1"><strong>Quantity:</strong></label>
-						<div class="input-group input-group-sm">
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.nextElementSibling.stepDown()">
-								-
-							</button>
-							<input
-								type="number"
-								class="form-control text-center border-dark"
-								value="1"
-								min="1" />
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.previousElementSibling.stepUp()">
-								+
-							</button>
-						</div>
-					</div>
-				</div>
-				<button class="btn btn-danger btn-sm mt-3 mt-md-0">
-					<i class="fa-solid fa-trash"></i>Remove
-				</button>
-			</div>
+						<img src="imgs/<?= htmlspecialchars($item['image']) ?>"
+							alt="<?= htmlspecialchars($item['name']) ?>" class="cart-img" />
 
-			<!-- Cart Item 3 -->
-			<div
-				class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-				<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
-				<div class="flex-grow-1">
-					<h2 class="mb-2" style="color: var(--navy)">Mechanical Keyboard</h2>
-					<p class="mb-1"><strong>Price:</strong> ₱5,000</p>
-					<div class="quantity-wrapper">
-						<label class="form-label mb-1"><strong>Quantity:</strong></label>
-						<div class="input-group input-group-sm">
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.nextElementSibling.stepDown()">
-								-
-							</button>
-							<input
-								type="number"
-								class="form-control text-center border-dark"
-								value="1"
-								min="1" />
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.previousElementSibling.stepUp()">
-								+
-							</button>
+						<div class="flex-grow-1">
+							<h2 class="mb-2" style="color: var(--navy)"><?= htmlspecialchars($item['name']) ?></h2>
+							<p class="mb-1"><strong>Price:</strong> ₱<?= number_format($item['price'], 2) ?></p>
+							<div class="quantity-wrapper">
+								<label class="form-label mb-1"><strong>Quantity:</strong></label>
+								<div class="input-group input-group-sm justify-content-center">
+									<a href="?sub=<?= $item['product_id'] ?>#product-<?= $item['product_id'] ?>"
+										class="btn btn-outline-dark py-0 px-3 fs-5">-</a>
+									<span class="form-control text-center border-dark"><?= $item['quantity'] ?></span>
+									<a href="?add=<?= $item['product_id'] ?>#product-<?= $item['product_id'] ?>"
+										class="btn btn-outline-dark py-0 px-3 fs-5">+</a>
+								</div>
+							</div>
 						</div>
-					</div>
-				</div>
-				<button class="btn btn-danger btn-sm mt-3 mt-md-0">
-					<i class="fa-solid fa-trash"></i>Remove
-				</button>
-			</div>
 
-			<!-- Cart Item 4 -->
-			<div
-				class="cart-item d-flex flex-column flex-md-row align-items-center gap-4 p-4 mb-4 bg-white shadow rounded">
-				<img src="imgs/rtx4080.jpg" alt="Product" class="cart-img" />
-				<div class="flex-grow-1">
-					<h2 class="mb-2" style="color: var(--navy)">4K Gaming Monitor</h2>
-					<p class="mb-1"><strong>Price:</strong> ₱20,000</p>
-					<div class="quantity-wrapper">
-						<label class="form-label mb-1"><strong>Quantity:</strong></label>
-						<div class="input-group input-group-sm">
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.nextElementSibling.stepDown()">
-								-
+						<form method="POST" action="cart.php" class="d-inline">
+							<input type="hidden" name="product_id" value="<?= $item['product_id'] ?>">
+							<button type="submit" name="remove_item" class="btn btn-danger btn-sm mt-3 mt-md-0">
+								<i class="fa-solid fa-trash"></i> Remove
 							</button>
-							<input
-								type="number"
-								class="form-control text-center border-dark"
-								value="1"
-								min="1" />
-							<button
-								class="btn btn-outline-dark py-0 px-3 fs-5"
-								type="button"
-								onclick="this.previousElementSibling.stepUp()">
-								+
-							</button>
-						</div>
+						</form>
 					</div>
-				</div>
-				<button class="btn btn-danger btn-sm mt-3 mt-md-0">
-					<i class="fa-solid fa-trash"></i>Remove
-				</button>
-			</div>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<div class="alert alert-info text-center">Your cart is empty.</div>
+			<?php endif; ?>
 
 			<!-- Total and Checkout -->
 			<div class="text-end mt-4">
-				<h1 class="text-success mt-2">Total: ₱144,999</h1>
-				<a href="checkout.php" class="cta-cart mt-2 d-inline-block">Proceed to Checkout</a>
+				<h1 class="text-success mt-2">Subtotal: ₱<?= number_format($totalPrice, 2) ?></h1>
+				<?php if ($totalPrice > 0): ?>
+					<a href="checkout.php" class="cta-cart mt-2 d-inline-block">Proceed to Checkout</a>
+				<?php endif; ?>
 			</div>
 		</div>
 	</section>
+
 
 	<!-- Footer -->
 	<footer class="footer">
