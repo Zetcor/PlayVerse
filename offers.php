@@ -9,6 +9,17 @@ if ($conn->connect_error) {
 $loggedIn = isset($_SESSION['customer_id']);
 $customer_id = $loggedIn ? $_SESSION['customer_id'] : null;
 
+// ✅ Add this block to fetch the $username if logged in
+$username = '';
+if ($loggedIn) {
+	$stmtUser = $conn->prepare("SELECT username FROM customers WHERE customer_id = ?");
+	$stmtUser->bind_param("i", $customer_id);
+	$stmtUser->execute();
+	$stmtUser->bind_result($username);
+	$stmtUser->fetch();
+	$stmtUser->close();
+}
+
 $cart_id = null;
 $totalQuantity = 0;
 
@@ -100,6 +111,7 @@ switch ($sort_option) {
 
 $result = $conn->query($sql);
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -561,6 +573,42 @@ $result = $conn->query($sql);
 			transform: translateY(-1px);
 			box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
 		}
+
+		.dropdown-menu {
+			background-color: var(--navy);
+			border: none;
+			border-radius: 6px;
+			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+			padding: 10px 0;
+		}
+
+		.dropdown-item {
+			color: var(--light-gray);
+			font-family: 'Rajdhani', sans-serif;
+			font-size: 0.95rem;
+			padding: 10px 20px;
+			transition: background-color 0.3s ease, color 0.3s ease;
+		}
+
+		.dropdown-item:hover {
+			background-color: hsla(0, 0%, 95%, 0.25);
+			color: var(--light-gray);
+		}
+
+		.dropdown-toggle::after {
+			color: var(--light-gray);
+			font-size: 0.75rem;
+		}
+
+		.dropdown-toggle:hover::after {
+			color: var(--pink);
+		}
+
+		.dropdown-item[href="logout.php"]:hover {
+			background-color: #dc3545;
+			color: white;
+		}
+
 	</style>
 </head>
 
@@ -601,9 +649,28 @@ $result = $conn->query($sql);
 								<?php endif; ?>
 							</a>
 						</li>
-						<li class="nav-item">
-							<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN
-							</a>
+						<li class="nav-item dropdown">
+							<?php if (isset($_SESSION['customer_id']) && $username): ?>
+								<a class="cta-login dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+									<i class="fa-solid fa-circle-user"></i> <?= htmlspecialchars($username) ?>
+								</a>
+								<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+									<li>
+										<a class="dropdown-item" href="welcome.php">
+											<i class="fa-solid fa-user"></i> My Profile
+										</a>
+									</li>
+									<li>
+										<a class="dropdown-item" href="logout.php">
+											<i class="fa-solid fa-right-from-bracket"></i> Logout
+										</a>
+									</li>
+								</ul>
+							<?php else: ?>
+								<a href="login.php" class="cta-login">
+									<i class="fa-solid fa-circle-user"></i> LOGIN
+								</a>
+							<?php endif; ?>
 						</li>
 					</ul>
 				</div>
