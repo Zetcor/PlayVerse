@@ -1,17 +1,12 @@
 <?php
 session_start();
 
-$host = 'localhost';
-$user = 'root';
-$password = '';
-$dbname = 'PlayVerse';
-
 $totalQuantity = 0;
 
 if (isset($_SESSION['customer_id'])) {
 	$customer_id = $_SESSION['customer_id'];
 
-	$conn = new mysqli($host, $user, $password, $dbname);
+	$conn = new mysqli("localhost", "root", "", "PlayVerse");
 	if ($conn->connect_error) {
 		die("Connection failed: " . $conn->connect_error);
 	}

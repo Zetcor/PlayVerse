@@ -1,65 +1,102 @@
 <?php
 session_start();
-$host = 'localhost';
-$user = 'root';
-$password = '';
-$dbname = 'PlayVerse';
 
-$conn = new mysqli($host, $user, $password, $dbname);
+$conn = new mysqli("localhost", "root", "", "PlayVerse");
 if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
 }
 
-$customer = null;
-$cart_items = [];
-$totalPrice = 0;
+$customer      = null;
+$cart_items    = [];
+$totalPrice    = 0;
 $totalQuantity = 0;
-$cart_id = null;
+$cart_id       = null;
 
-// Handle order submission
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SESSION['customer_id']) && isset($_POST['place_order'])) {
-	$customer_id = $_SESSION['customer_id'];
-	$cart_id = $_POST['cart_id'];
+if (
+	$_SERVER["REQUEST_METHOD"] === "POST" &&
+	isset($_SESSION['customer_id']) &&
+	isset($_POST['place_order'])
+) {
+	$customer_id      = $_SESSION['customer_id'];
+	$cart_id          = (int)$_POST['cart_id'];
 	$shipping_address = $_POST['shipping_address'];
-	$total_amount = $_POST['total_amount'];
-	$payment_method = $_POST['payment_method'];
+	$total_amount     = $_POST['total_amount'];
+	$payment_method   = $_POST['payment_method'];
 	$transaction_date = date('Y-m-d');
 
-	// Insert transaction
-	$stmt = $conn->prepare("INSERT INTO transactions (customer_id, cart_id, shipping_address, total_amount, mode_of_payment, transaction_date) VALUES (?, ?, ?, ?, ?, ?)");
-	$stmt->bind_param("iisdss", $customer_id, $cart_id, $shipping_address, $total_amount, $payment_method, $transaction_date);
+	$stmt = $conn->prepare("
+        INSERT INTO transactions
+              (customer_id, cart_id, shipping_address,
+               total_amount, mode_of_payment, transaction_date)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ");
+	$stmt->bind_param(
+		"iisdss",
+		$customer_id,
+		$cart_id,
+		$shipping_address,
+		$total_amount,
+		$payment_method,
+		$transaction_date
+	);
 
 	if ($stmt->execute()) {
-		// Clear cart
-		$clear_stmt = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ?");
-		$clear_stmt->bind_param("i", $cart_id);
-		$clear_stmt->execute();
-		$clear_stmt->close();
+		$transaction_id = $stmt->insert_id;
 
-		echo "<script>alert('Order placed successfully!'); window.location.href='thankyou.php';</script>";
+		$cart_items = [];
+		$ci = $conn->prepare("
+            SELECT ci.product_id, ci.quantity, p.price
+            FROM cart_items ci
+            JOIN products p ON ci.product_id = p.product_id
+            WHERE ci.cart_id = ?
+        ");
+		$ci->bind_param("i", $cart_id);
+		$ci->execute();
+		$res = $ci->get_result();
+		while ($row = $res->fetch_assoc()) {
+			$cart_items[] = $row;
+		}
+		$ci->close();
+
+		$ti = $conn->prepare("
+            INSERT INTO transaction_items
+                   (transaction_id, product_id, quantity, price)
+            VALUES (?, ?, ?, ?)
+        ");
+		foreach ($cart_items as $item) {
+			$ti->bind_param(
+				"iiid",
+				$transaction_id,
+				$item['product_id'],
+				$item['quantity'],
+				$item['price']
+			);
+			$ti->execute();
+		}
+		$ti->close();
+
+		$clear = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ?");
+		$clear->bind_param("i", $cart_id);
+		$clear->execute();
+		$clear->close();
+
+		echo "<script>
+                alert('Order placed successfully!');
+                window.location.href='thankyou.php?transaction_id={$transaction_id}';
+              </script>";
 		exit;
-	} else {
-		echo "<script>alert('Error placing order: " . $stmt->error . "');</script>";
 	}
-
-	$stmt->close();
 }
 
-// Load customer + cart
 if (isset($_SESSION['customer_id'])) {
 	$customer_id = $_SESSION['customer_id'];
 
-	// Customer info
 	$stmt = $conn->prepare("SELECT * FROM customers WHERE customer_id = ?");
 	$stmt->bind_param("i", $customer_id);
 	$stmt->execute();
-	$result = $stmt->get_result();
-	if ($result->num_rows > 0) {
-		$customer = $result->fetch_assoc();
-	}
+	$customer = $stmt->get_result()->fetch_assoc();
 	$stmt->close();
 
-	// Cart ID
 	$stmt = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ?");
 	$stmt->bind_param("i", $customer_id);
 	$stmt->execute();
@@ -73,26 +110,26 @@ if (isset($_SESSION['customer_id'])) {
 	}
 	$stmt->close();
 
-	// Cart items
 	$stmt = $conn->prepare("
-		SELECT ci.product_id, ci.quantity, p.name, p.price, p.image
-		FROM cart_items ci
-		JOIN products p ON ci.product_id = p.product_id
-		WHERE ci.cart_id = ?
-	");
+        SELECT ci.product_id, ci.quantity, p.name, p.price, p.image
+        FROM cart_items ci
+        JOIN products p ON ci.product_id = p.product_id
+        WHERE ci.cart_id = ?
+    ");
 	$stmt->bind_param("i", $cart_id);
 	$stmt->execute();
 	$resItems = $stmt->get_result();
 	while ($row = $resItems->fetch_assoc()) {
 		$row['subtotal'] = $row['price'] * $row['quantity'];
-		$totalPrice += $row['subtotal'];
-		$cart_items[] = $row;
+		$totalPrice     += $row['subtotal'];
+		$cart_items[]    = $row;
 	}
 	$stmt->close();
 
 	$totalQuantity = array_sum(array_column($cart_items, 'quantity'));
-
-	$ship_address = $customer['street'] . ', ' . $customer['city'] . ', ' . $customer['province'] . ', ' . $customer['country'] . ' ' . $customer['zipcode'];
+	$ship_address  = "{$customer['street']}, {$customer['city']}, " .
+		"{$customer['province']}, {$customer['country']} " .
+		"{$customer['zipcode']}";
 }
 ?>
 
@@ -637,94 +674,94 @@ if (isset($_SESSION['customer_id'])) {
 	</nav>
 
 	<!-- Checkout Section -->
-<!-- Checkout Section -->
-<section class="checkout-section py-5">
-	<div class="container">
-		<h2 class="text-center display-5 fw-bold mb-5" style="color:#8f43ec;">CHECKOUT</h2>
+	<!-- Checkout Section -->
+	<section class="checkout-section py-5">
+		<div class="container">
+			<h2 class="text-center display-5 fw-bold mb-5" style="color:#8f43ec;">CHECKOUT</h2>
 
-		<form method="POST" action="">
-			<div class="row g-5">
-				<!-- Customer Info -->
-				<div class="col-md-7">
-					<div class="bg-white p-4 rounded shadow">
-						<h2 style="color:#0a1128;">Customer Information</h2>
+			<form method="POST" action="">
+				<div class="row g-5">
+					<!-- Customer Info -->
+					<div class="col-md-7">
+						<div class="bg-white p-4 rounded shadow">
+							<h2 style="color:#0a1128;">Customer Information</h2>
 
-						<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
-						<input type="hidden" name="total_amount" value="<?= number_format($totalPrice + ($totalPrice * 0.12), 2, '.', '') ?>">
+							<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
+							<input type="hidden" name="total_amount" value="<?= number_format($totalPrice + ($totalPrice * 0.12), 2, '.', '') ?>">
 
-						<div class="mb-3">
-							<label for="name" class="form-label">Full Name</label>
-							<input type="text" class="form-control" id="name" value="<?= htmlspecialchars($customer['full_name'] ?? '') ?>" readonly />
+							<div class="mb-3">
+								<label for="name" class="form-label">Full Name</label>
+								<input type="text" class="form-control" id="name" value="<?= htmlspecialchars($customer['full_name'] ?? '') ?>" readonly />
+							</div>
+							<div class="mb-3">
+								<label for="email" class="form-label">Email Address</label>
+								<input type="email" class="form-control" id="email" value="<?= htmlspecialchars($customer['email'] ?? '') ?>" readonly />
+							</div>
+							<div class="mb-3">
+								<label for="phone" class="form-label">Phone Number</label>
+								<input type="tel" class="form-control" id="phone" value="<?= htmlspecialchars($customer['contact_no'] ?? '') ?>" readonly />
+							</div>
+
+							<div class="mb-3">
+								<label for="shippingadd" class="form-label">Shipping Address</label>
+								<textarea class="form-control" name="shipping_address" id="shippingadd" rows="2"><?= htmlspecialchars($ship_address) ?></textarea>
+							</div>
+
+							<h2 class="mt-4" style="color:#0a1128;">Payment Method</h2>
+							<select name="payment_method" class="form-select mb-3" required>
+								<option value="" disabled selected>Select method</option>
+								<option value="Credit/Debit">Credit/Debit Card</option>
+								<option value="Paypal">PayPal</option>
+								<option value="Gcash">GCash</option>
+							</select>
 						</div>
-						<div class="mb-3">
-							<label for="email" class="form-label">Email Address</label>
-							<input type="email" class="form-control" id="email" value="<?= htmlspecialchars($customer['email'] ?? '') ?>" readonly />
-						</div>
-						<div class="mb-3">
-							<label for="phone" class="form-label">Phone Number</label>
-							<input type="tel" class="form-control" id="phone" value="<?= htmlspecialchars($customer['contact_no'] ?? '') ?>" readonly />
-						</div>
-
-						<div class="mb-3">
-							<label for="shippingadd" class="form-label">Shipping Address</label>
-							<textarea class="form-control" name="shipping_address" id="shippingadd" rows="2"><?= htmlspecialchars($ship_address) ?></textarea>
-						</div>
-
-						<h2 class="mt-4" style="color:#0a1128;">Payment Method</h2>
-						<select name="payment_method" class="form-select mb-3" required>
-							<option value="" disabled selected>Select method</option>
-							<option value="Credit/Debit">Credit/Debit Card</option>
-							<option value="Paypal">PayPal</option>
-							<option value="Gcash">GCash</option>
-						</select>
 					</div>
-				</div>
 
-				<!-- Order Summary -->
-				<div class="col-md-5">
-					<div class="bg-white p-4 rounded shadow">
-						<h2 style="color:#0a1128;">Order Summary</h2>
+					<!-- Order Summary -->
+					<div class="col-md-5">
+						<div class="bg-white p-4 rounded shadow">
+							<h2 style="color:#0a1128;">Order Summary</h2>
 
-						<?php if (count($cart_items)): ?>
-							<?php foreach ($cart_items as $item): ?>
-								<div class="d-flex align-items-center mb-3">
-									<div class="summary-img-box me-3">
-										<img src="imgs/<?= htmlspecialchars($item['image']) ?>" class="summary-img">
+							<?php if (count($cart_items)): ?>
+								<?php foreach ($cart_items as $item): ?>
+									<div class="d-flex align-items-center mb-3">
+										<div class="summary-img-box me-3">
+											<img src="imgs/<?= htmlspecialchars($item['image']) ?>" class="summary-img">
+										</div>
+										<div class="flex-grow-1 d-flex justify-content-between">
+											<span><?= htmlspecialchars($item['name']) ?> (x<?= $item['quantity'] ?>)</span>
+											<span>₱<?= number_format($item['subtotal'], 2) ?></span>
+										</div>
 									</div>
-									<div class="flex-grow-1 d-flex justify-content-between">
-										<span><?= htmlspecialchars($item['name']) ?> (x<?= $item['quantity'] ?>)</span>
-										<span>₱<?= number_format($item['subtotal'], 2) ?></span>
-									</div>
+								<?php endforeach; ?>
+
+								<hr>
+								<div class="d-flex justify-content-between fs-6">
+									<span>Subtotal</span>
+									<span>₱<?= number_format($totalPrice, 2) ?></span>
 								</div>
-							<?php endforeach; ?>
+								<div class="d-flex justify-content-between fs-6">
+									<?php $vat = $totalPrice * 0.12; ?>
+									<span>VAT(12%)</span>
+									<span>₱<?= number_format($vat, 2) ?></span>
+								</div>
+								<hr>
+								<div class="d-flex justify-content-between fw-bold fs-4 mt-4">
+									<span>Total</span>
+									<span class="text-success">₱<?= number_format($totalPrice + $vat, 2) ?></span>
+								</div>
 
-							<hr>
-							<div class="d-flex justify-content-between fs-6">
-								<span>Subtotal</span>
-								<span>₱<?= number_format($totalPrice, 2) ?></span>
-							</div>
-							<div class="d-flex justify-content-between fs-6">
-								<?php $vat = $totalPrice * 0.12; ?>
-								<span>VAT(12%)</span>
-								<span>₱<?= number_format($vat, 2) ?></span>
-							</div>
-							<hr>
-							<div class="d-flex justify-content-between fw-bold fs-4 mt-4">
-								<span>Total</span>
-								<span class="text-success">₱<?= number_format($totalPrice + $vat, 2) ?></span>
-							</div>
+								<button type="submit" name="place_order" class="btn cta-cart w-100 mt-4">Place Order</button>
 
-							<button type="submit" name="place_order" class="btn cta-cart w-100 mt-4">Place Order</button>
-
-						<?php else: ?>
-							<div class="alert alert-warning">Your cart is empty.</div>
-						<?php endif; ?>
+							<?php else: ?>
+								<div class="alert alert-warning">Your cart is empty.</div>
+							<?php endif; ?>
+						</div>
 					</div>
 				</div>
-			</div>
-		</form>
-	</div>
-</section>
+			</form>
+		</div>
+	</section>
 
 
 	<!-- Footer -->

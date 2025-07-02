@@ -1,12 +1,6 @@
 <?php
 session_start();
 
-$host = 'localhost';
-$user = 'root';
-$password = '';
-$dbname = 'PlayVerse';
-
-// Redirect if not logged in
 if (!isset($_SESSION['customer_id'])) {
 	header("Location: login.php");
 	exit();
@@ -14,12 +8,11 @@ if (!isset($_SESSION['customer_id'])) {
 
 $customer_id = $_SESSION['customer_id'];
 
-$conn = new mysqli($host, $user, $password, $dbname);
+$conn = new mysqli("localhost", "root", "", "PlayVerse");
 if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
 }
 
-// Get or create cart
 $cart_id = null;
 $cart_sql = "SELECT cart_id FROM cart WHERE customer_id = ?";
 $stmt = $conn->prepare($cart_sql);
@@ -38,7 +31,6 @@ if (!$stmt->fetch()) {
 	$stmt->close();
 }
 
-// ✅ Handle item removal
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['remove_item'], $_POST['product_id'])) {
 	$product_id = intval($_POST['product_id']);
 	$stmtRemove = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?");
@@ -50,7 +42,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['remove_item'], $_POST
 	exit();
 }
 
-// ✅ Handle add/subtract quantity via GET
 if (isset($_GET['add']) || isset($_GET['sub'])) {
 	$changeProductId = isset($_GET['add']) ? intval($_GET['add']) : intval($_GET['sub']);
 	$changeType = isset($_GET['add']) ? 'add' : 'sub';
@@ -72,12 +63,10 @@ if (isset($_GET['add']) || isset($_GET['sub'])) {
 		$stmtQty->close();
 	}
 
-	// 🔁 Refresh and scroll to the product
 	header("Location: cart.php#product-$changeProductId");
 	exit();
 }
 
-// ✅ Get total quantity
 $totalQuantity = 0;
 $sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
 $stmtQty = $conn->prepare($sqlQty);
@@ -91,7 +80,6 @@ if (!$totalQuantity) {
 	$totalQuantity = 0;
 }
 
-// ✅ Fetch cart items
 $cart_items = [];
 $totalPrice = 0;
 

@@ -1,19 +1,18 @@
 <?php
 session_start();
 
-// Redirect if user not logged in
 if (!isset($_SESSION['user']['username'])) {
 	header("Location: register.php");
 	exit;
 }
 
-// Connect to the database
 $conn = new mysqli("localhost", "root", "", "PlayVerse");
 if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
 }
 
-// Get username from session and fetch full user info
+$transactionId = isset($_GET['transaction_id']) ? (int)$_GET['transaction_id'] : 0;
+
 $username = $_SESSION['user']['username'];
 $stmt = $conn->prepare("SELECT * FROM customers WHERE username = ?");
 $stmt->bind_param("s", $username);
@@ -24,38 +23,70 @@ if ($result->num_rows !== 1) {
 	die("User not found.");
 }
 
-$user = $result->fetch_assoc(); // Now contains customer_id and other details
+$user = $result->fetch_assoc();
 $stmt->close();
 
-// Fetch the latest transaction of the user
-$orderQuery = "
-	SELECT t.*, c.cart_id, c.customer_id 
-	FROM transactions t
-	JOIN cart c ON t.cart_id = c.cart_id
-	WHERE c.customer_id = ? 
-	ORDER BY t.transaction_date DESC 
-	LIMIT 1
-";
-$stmt = $conn->prepare($orderQuery);
-$stmt->bind_param("i", $user['customer_id']);
+$totalQuantity = 0;
+
+if (isset($_SESSION['customer_id'])) {
+	$customer_id = $_SESSION['customer_id'];
+
+	$stmtCart = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ?");
+	$stmtCart->bind_param("i", $customer_id);
+	$stmtCart->execute();
+	$stmtCart->bind_result($cart_id);
+	if ($stmtCart->fetch()) {
+		$stmtCart->close();
+
+		$stmtQty = $conn->prepare("SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?");
+		$stmtQty->bind_param("i", $cart_id);
+		$stmtQty->execute();
+		$stmtQty->bind_result($totalQuantity);
+		$stmtQty->fetch();
+		$stmtQty->close();
+
+		if (!$totalQuantity) {
+			$totalQuantity = 0;
+		}
+	} else {
+		$stmtCart->close();
+	}
+}
+
+if ($transactionId) {
+	$orderQuery = "SELECT * FROM transactions WHERE transaction_id = ? LIMIT 1";
+	$stmt = $conn->prepare($orderQuery);
+	$stmt->bind_param("i", $transactionId);
+} else {
+	$orderQuery = "
+		SELECT * FROM transactions
+		WHERE customer_id = ?
+		ORDER BY transaction_date DESC
+		LIMIT 1
+	";
+	$stmt = $conn->prepare($orderQuery);
+	$stmt->bind_param("i", $user['customer_id']);
+}
 $stmt->execute();
 $orderResult = $stmt->get_result();
 $order = $orderResult->fetch_assoc();
 $stmt->close();
 
-// Fetch cart items for that transaction
 $cartItems = [];
 if ($order) {
-	$cartId = $order['cart_id'];
+	$txId = $order['transaction_id'];
 
 	$itemQuery = "
-		SELECT p.name, p.price, ci.quantity 
-		FROM cart_items ci
-		JOIN products p ON ci.product_id = p.product_id
-		WHERE ci.cart_id = ?
+		SELECT p.name,
+			   ti.price        AS unit_price,
+			   ti.quantity,
+			   (ti.price * ti.quantity) AS subtotal
+		FROM transaction_items ti
+		JOIN products p ON ti.product_id = p.product_id
+		WHERE ti.transaction_id = ?
 	";
 	$stmt = $conn->prepare($itemQuery);
-	$stmt->bind_param("i", $cartId);
+	$stmt->bind_param("i", $txId);
 	$stmt->execute();
 	$itemsResult = $stmt->get_result();
 
@@ -66,14 +97,13 @@ if ($order) {
 }
 ?>
 
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>Offers</title>
+	<title>Thank You</title>
 	<link
 		href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
 		rel="stylesheet" />
@@ -451,9 +481,13 @@ if ($order) {
 						<li class="nav-item">
 							<a class="nav-link" href="about.php"><i class="fa-solid fa-users"></i>ABOUT US</a>
 						</li>
-						<li class="nav-item">
-							<a class="nav-link" href="cart.php"><i class="fa-solid fa-cart-shopping"></i>CART</a>
-						</li>
+						<a class="nav-link" href="cart.php">
+							<i class="fa-solid fa-cart-shopping"></i>CART
+							<?php if (isset($_SESSION['customer_id']) && $totalQuantity > 0): ?>
+								<span class="badge bg-danger rounded-pill ms-1"><?= $totalQuantity ?></span>
+							<?php endif; ?>
+						</a>
+
 						<li class="nav-item">
 							<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN
 							</a>
@@ -467,60 +501,72 @@ if ($order) {
 		<section class="profile-section d-flex flex-column align-items-center justify-content-center">
 			<div class="profile-wrapper text-start fs-5">
 				<div class="text-center mt-5 p-5 bg-light rounded shadow">
-					<h1 class="mb-3"><i class="fa-solid fa-user-check" style="color: #00f5d4;"></i> Welcome, <i><?= htmlspecialchars($user['username']); ?></i>, to your dashboard!</h1>
-					<p class="lead">You're now logged in. Explore what Playverse has to offer!</p>
+					<h1 class="mb-3">
+						<i class="fa-solid fa-check-circle" style="color: var(--teal);"></i>
+						Thank You for Your Purchase, <i><?= htmlspecialchars($user['username']); ?></i>!
+					</h1>
+					<p class="lead">We appreciate your trust in Playverse. You'll receive a confirmation email shortly.</p>
 				</div>
 
-<div class="card p-5 my-5 rounded shadow fs-5">
-	<h2 class="mb-3">Order Confirmation</h2>
-	<p class="lead text-success"><strong>Your order has been placed successfully!</strong></p>
+				<div class="card p-5 my-5 rounded shadow fs-5">
+					<h2 class="mb-3">Order Confirmation</h2>
+					<p class="lead text-success"><strong>Your order has been placed successfully!</strong></p>
 
-	<?php if ($order): ?>
-		<div class="row mb-3">
-			<div class="col-md-6"><strong>Transaction ID:</strong> <?= $order['transaction_id']; ?></div>
-			<div class="col-md-6"><strong>Cart ID:</strong> <?= $order['cart_id']; ?></div>
-			<div class="col-md-6"><strong>Total Amount:</strong> ₱<?= number_format($order['total_amount'], 2); ?></div>
-			<div class="col-md-6"><strong>Payment Mode:</strong> <?= $order['mode_of_payment']; ?></div>
-			<div class="col-md-6"><strong>Shipping Address:</strong> <?= htmlspecialchars($order['shipping_address']); ?></div>
-			<div class="col-md-6"><strong>Date:</strong> <?= date("F j, Y", strtotime($order['transaction_date'])); ?></div>
-		</div>
+					<?php if ($order): ?>
+						<div class="row mb-3">
+							<div class="col-md-6"><strong>Transaction ID:</strong> <?= $order['transaction_id']; ?></div>
+							<div class="col-md-6"><strong>Cart ID:</strong> <?= $order['cart_id']; ?></div>
+							<div class="col-md-6"><strong>Total Amount:</strong> ₱<?= number_format($order['total_amount'], 2); ?></div>
+							<div class="col-md-6"><strong>Payment Mode:</strong> <?= $order['mode_of_payment']; ?></div>
+							<div class="col-md-6"><strong>Shipping Address:</strong> <?= htmlspecialchars($order['shipping_address']); ?></div>
+							<div class="col-md-6"><strong>Date:</strong> <?= date("F j, Y", strtotime($order['transaction_date'])); ?></div>
+						</div>
 
-		<hr class="my-4" />
+						<hr class="my-4" />
 
-		<h3 class="mb-3">Order Summary</h3>
-		<div class="table-responsive">
-			<table class="table table-bordered table-striped">
-				<thead class="table-light">
-					<tr>
-						<th>Product Name</th>
-						<th>Price</th>
-						<th>Quantity</th>
-						<th>Subtotal</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($cartItems as $item): ?>
-						<tr>
-							<td><?= htmlspecialchars($item['name']); ?></td>
-							<td>₱<?= number_format($item['price'], 2); ?></td>
-							<td><?= $item['quantity']; ?></td>
-							<td>₱<?= number_format($item['price'] * $item['quantity'], 2); ?></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
-		</div>
-	<?php else: ?>
-		<p class="text-danger">No recent order found.</p>
-	<?php endif; ?>
+						<h2 class="mb-3">Order Summary</h2>
+						<div class="table-responsive">
+							<table class="table table-bordered table-striped">
+								<thead class="table-light">
+									<tr>
+										<th>Product Name</th>
+										<th>Price</th>
+										<th>Quantity</th>
+										<th>Subtotal</th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ($cartItems as $item): ?>
+										<tr>
+											<td><?= htmlspecialchars($item['name']); ?></td>
+											<td>₱<?= number_format($item['unit_price'], 2); ?></td>
+											<td><?= $item['quantity']; ?></td>
+											<td>₱<?= number_format($item['subtotal'], 2); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
 
-	<hr class="my-4" />
+							</table>
+						</div>
+					<?php else: ?>
+						<p class="text-danger">No recent order found.</p>
+					<?php endif; ?>
 
-	<div class="d-flex justify-content-end gap-3">
-		<a href="index.php" class="btn btn-outline-primary px-4 py-2">Go to Homepage</a>
-		<a href="offers.php" class="btn btn-primary px-4 py-2">Browse More Offers</a>
-	</div>
-</div>
+					<hr class="my-4" />
+
+					<div class="d-flex justify-content-end gap-3">
+						<a href="index.php" class="cta-button"
+							style="background-color: var(--navy); border-color: var(--navy); color: var(--teal); padding: 0.4rem 1.4rem; font-size: 1rem; border-width: 3px;">
+							<i class="fa-solid fa-house"></i> Go to Homepage
+						</a>
+						<a href="offers.php" class="cta-button"
+							style="padding: 0.4rem 1.4rem; font-size: 1rem; border-width: 3px;">
+							<i class="fa-solid fa-tags"></i> Browse More Offers
+						</a>
+					</div>
+
+
+				</div>
 			</div>
 		</section>
 

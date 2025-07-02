@@ -1,103 +1,86 @@
 <?php
 session_start();
 
-$host = 'localhost';
-$user = 'root';
-$password = ''; // default in XAMPP
-$dbname = 'PlayVerse';
-
-// Redirect to login if not logged in
-if (!isset($_SESSION['customer_id'])) {
-	header("Location: login.php");
-	exit();
-}
-
-$customer_id = $_SESSION['customer_id'];
-
-// Connect to DB
-$conn = new mysqli($host, $user, $password, $dbname);
+$conn = new mysqli("localhost", "root", "", "PlayVerse");
 if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
 }
 
-// Ensure cart exists for customer
+$loggedIn = isset($_SESSION['customer_id']);
+$customer_id = $loggedIn ? $_SESSION['customer_id'] : null;
+
 $cart_id = null;
-$cart_sql = "SELECT cart_id FROM cart WHERE customer_id = ?";
-$stmt = $conn->prepare($cart_sql);
-$stmt->bind_param("i", $customer_id);
-$stmt->execute();
-$stmt->bind_result($cart_id);
-if (!$stmt->fetch()) {
-	$stmt->close();
-	$insert_cart_sql = "INSERT INTO cart (customer_id) VALUES (?)";
-	$stmt2 = $conn->prepare($insert_cart_sql);
-	$stmt2->bind_param("i", $customer_id);
-	$stmt2->execute();
-	$cart_id = $stmt2->insert_id;
-	$stmt2->close();
-} else {
-	$stmt->close();
-}
-
-// Handle Add to Cart POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'], $_POST['quantity'])) {
-	$product_id = intval($_POST['product_id']);
-	$quantity = intval($_POST['quantity']);
-	if ($quantity < 1) {
-		$quantity = 1;
-	}
-
-	// Check if this product already in cart_items
-	$check_sql = "SELECT quantity FROM cart_items WHERE cart_id = ? AND product_id = ?";
-	$check_stmt = $conn->prepare($check_sql);
-	$check_stmt->bind_param("ii", $cart_id, $product_id);
-	$check_stmt->execute();
-	$check_stmt->bind_result($existing_quantity);
-	if ($check_stmt->fetch()) {
-		// Update quantity
-		$new_quantity = $existing_quantity + $quantity;
-		$check_stmt->close();
-
-		$update_sql = "UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?";
-		$update_stmt = $conn->prepare($update_sql);
-		$update_stmt->bind_param("iii", $new_quantity, $cart_id, $product_id);
-		$update_stmt->execute();
-		$update_stmt->close();
-	} else {
-		// Insert new item
-		$check_stmt->close();
-		$insert_sql = "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)";
-		$insert_stmt = $conn->prepare($insert_sql);
-		$insert_stmt->bind_param("iii", $cart_id, $product_id, $quantity);
-		$insert_stmt->execute();
-		$insert_stmt->close();
-	}
-
-	// Redirect to avoid form resubmission and show updated cart quantity
-	$redirectSort = isset($_GET['sort']) ? $_GET['sort'] : '';
-	header("Location: offers.php" . ($redirectSort ? "?sort=" . urlencode($redirectSort) : ""));
-
-	exit();
-}
-
-// Fetch total quantity in cart for navbar badge
 $totalQuantity = 0;
-$sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
-$stmtQty = $conn->prepare($sqlQty);
-$stmtQty->bind_param("i", $cart_id);
-$stmtQty->execute();
-$stmtQty->bind_result($totalQuantity);
-$stmtQty->fetch();
-$stmtQty->close();
 
-if (!$totalQuantity) {
-	$totalQuantity = 0;
+if ($loggedIn) {
+
+	$stmt = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ?");
+	$stmt->bind_param("i", $customer_id);
+	$stmt->execute();
+	$stmt->bind_result($cart_id);
+
+	if (!$stmt->fetch()) {
+		$stmt->close();
+		$stmt = $conn->prepare("INSERT INTO cart (customer_id) VALUES (?)");
+		$stmt->bind_param("i", $customer_id);
+		$stmt->execute();
+		$cart_id = $stmt->insert_id;
+	}
+	$stmt->close();
+
+	if (
+		$_SERVER['REQUEST_METHOD'] === 'POST'
+		&& isset($_POST['product_id'], $_POST['quantity'])
+	) {
+		$product_id = intval($_POST['product_id']);
+		$quantity   = max(1, intval($_POST['quantity']));
+
+		$stmt = $conn->prepare(
+			"SELECT quantity FROM cart_items WHERE cart_id = ? AND product_id = ?"
+		);
+		$stmt->bind_param("ii", $cart_id, $product_id);
+		$stmt->execute();
+		$stmt->bind_result($existing_qty);
+
+		if ($stmt->fetch()) {
+			$stmt->close();
+			$new_qty = $existing_qty + $quantity;
+
+			$upd = $conn->prepare(
+				"UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?"
+			);
+			$upd->bind_param("iii", $new_qty, $cart_id, $product_id);
+			$upd->execute();
+			$upd->close();
+		} else {
+			$stmt->close();
+			$ins = $conn->prepare(
+				"INSERT INTO cart_items (cart_id, product_id, quantity)
+                 VALUES (?, ?, ?)"
+			);
+			$ins->bind_param("iii", $cart_id, $product_id, $quantity);
+			$ins->execute();
+			$ins->close();
+		}
+
+		$redirect = 'offers.php';
+		if (isset($_GET['sort']) && $_GET['sort'] !== '') {
+			$redirect .= '?sort=' . urlencode($_GET['sort']);
+		}
+		header("Location: $redirect");
+		exit;
+	}
+
+	$stmt = $conn->prepare(
+		"SELECT COALESCE(SUM(quantity),0) FROM cart_items WHERE cart_id = ?"
+	);
+	$stmt->bind_param("i", $cart_id);
+	$stmt->execute();
+	$stmt->bind_result($totalQuantity);
+	$stmt->fetch();
+	$stmt->close();
 }
 
-// Fetch products to display
-$sql = "SELECT * FROM products LIMIT 20";
-
-// Handle sort logic
 $sort_option = $_GET['sort'] ?? '';
 
 switch ($sort_option) {
@@ -630,35 +613,36 @@ $result = $conn->query($sql);
 		<!-- Products Section -->
 		<section class="promotions-section py-5 text-light">
 			<div class="container">
+
+				<!-- heading & sort dropdown (unchanged) -->
 				<div class="text-center mb-4">
 					<h2 class="display-5 fw-bold">ALL PRODUCTS</h2>
-					<p class="lead" style="color: #0a1128">
-						BROWSE WHAT WE HAVE IN STORE FOR YOU!
-					</p>
+					<p class="lead" style="color:#0a1128">BROWSE WHAT WE HAVE IN STORE FOR YOU!</p>
 				</div>
 
 				<div class="d-flex justify-content-between align-items-center mt-2 mb-4 px-2">
 					<h2 class="display-6 fw-bold text-uppercase">Sort Products</h2>
 					<form method="get" class="d-flex justify-content-end mb-4">
 						<select class="form-select w-auto" name="sort" onchange="this.form.submit()">
-							<option value="" <?= $sort_option === '' ? 'selected' : '' ?>>Sort by</option>
-							<option value="newest" <?= $sort_option === 'newest' ? 'selected' : '' ?>>Newest</option>
-							<option value="cheapest" <?= $sort_option === 'cheapest' ? 'selected' : '' ?>>Cheapest</option>
-							<option value="recommended" <?= $sort_option === 'recommended' ? 'selected' : '' ?>>Most Recommended</option>
+							<option value="" <?= $sort_option === '' ? ' selected' : '' ?>>Sort by</option>
+							<option value="newest" <?= $sort_option === 'newest' ? ' selected' : '' ?>>Newest</option>
+							<option value="cheapest" <?= $sort_option === 'cheapest' ? ' selected' : '' ?>>Cheapest</option>
+							<option value="recommended" <?= $sort_option === 'recommended' ? ' selected' : '' ?>>Most Recommended</option>
 						</select>
 					</form>
 				</div>
 
 				<div class="row g-4">
-					<?php $productIndex = 1; ?>
 					<?php while ($row = $result->fetch_assoc()): ?>
 						<div class="col-12 col-sm-6 col-md-4 col-lg-3">
 							<div class="card h-100 promotion-card text-light">
 								<div class="promo-img-box">
 									<a href="product.php">
-										<img src="imgs/<?= htmlspecialchars($row['image']) ?>" class="promo-img" alt="<?= htmlspecialchars($row['name']) ?>" />
+										<img src="imgs/<?= htmlspecialchars($row['image']) ?>"
+											class="promo-img" alt="<?= htmlspecialchars($row['name']) ?>">
 									</a>
 								</div>
+
 								<div class="card-body d-flex flex-column justify-content-between">
 									<div>
 										<h5 class="card-title"><?= htmlspecialchars($row['name']) ?></h5>
@@ -667,34 +651,54 @@ $result = $conn->query($sql);
 											<small class="text-light pt-2">Rating: <?= $row['rating'] ?>/100</small>
 										</div>
 										<p class="card-text"><?= htmlspecialchars($row['description']) ?></p>
-										<small
-											class="text-secondary">Date Added: <?= date('F j, Y', strtotime($row['date_added'])) ?></small>
+										<small class="text-secondary">Date Added: <?= date('F j, Y', strtotime($row['date_added'])) ?></small>
 									</div>
 
-									<form method="post" action="offers.php?sort=<?= urlencode($sort_option) ?>" class="row mt-3 g-2">
-										<input type="hidden" name="product_id" value="<?= $row['product_id'] ?>" />
-										<div class="col-6">
-											<div class="input-group input-group-sm">
-												<button class="btn btn-outline-light" style="padding: 0 12px;" type="button"
-													onclick="this.nextElementSibling.stepDown()">-</button>
-												<input type="number" name="quantity" class="form-control text-center" style="border-color: var(--teal);"
-													value="1" min="1" />
-												<button class="btn btn-outline-light" style="padding: 0 12px;" type="button"
-													onclick="this.previousElementSibling.stepUp()">+</button>
+									<!-- --------- Add‑to‑Cart area (differs for guests) ---------- -->
+									<?php if ($loggedIn): ?>
+										<form method="post"
+											action="offers.php?sort=<?= urlencode($sort_option) ?>"
+											class="row mt-3 g-2">
+											<input type="hidden" name="product_id" value="<?= $row['product_id'] ?>">
+											<div class="col-6">
+												<div class="input-group input-group-sm">
+													<button class="btn btn-outline-light" style="padding:0 12px" type="button"
+														onclick="this.nextElementSibling.stepDown()">-</button>
+													<input type="number" name="quantity"
+														class="form-control text-center"
+														style="border-color:var(--teal);" value="1" min="1">
+													<button class="btn btn-outline-light" style="padding:0 12px" type="button"
+														onclick="this.previousElementSibling.stepUp()">+</button>
+												</div>
+											</div>
+											<div class="col-6">
+												<button type="submit" class="cta-cart w-100">Add to Cart</button>
+											</div>
+										</form>
+									<?php else: ?>
+										<div class="row mt-3 g-2">
+											<div class="col-6">
+												<div class="input-group input-group-sm">
+													<button class="btn btn-outline-light" style="padding:0 12px" type="button">-</button>
+													<input type="number" class="form-control text-center"
+														style="border-color:var(--teal);" value="1" disabled>
+													<button class="btn btn-outline-light" style="padding:0 12px" type="button">+</button>
+												</div>
+											</div>
+											<div class="col-6">
+												<button type="button" class="cta-cart w-100"
+													onclick="alert('Please log in first to add items to your cart.'); window.location.href='login.php';">
+													Add to Cart
+												</button>
 											</div>
 										</div>
-										<div class="col-6">
-											<button type="submit" class="cta-cart w-100">
-												Add to Cart
-											</button>
-										</div>
-									</form>
+									<?php endif; ?>
+									<!-- ---------------------------------------------------------- -->
 
 								</div>
 							</div>
 						</div>
-					<?php $productIndex++;
-					endwhile; ?>
+					<?php endwhile; ?>
 				</div>
 
 			</div>

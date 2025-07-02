@@ -8,7 +8,6 @@ if (!isset($_SESSION['user']['username'])) {
 
 $username = $_SESSION['user']['username'];
 
-// Connect to MySQL
 $conn = new mysqli("localhost", "root", "", "PlayVerse");
 if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
@@ -27,6 +26,38 @@ if ($result->num_rows !== 1) {
 $user = $result->fetch_assoc();
 $stmt->close();
 $conn->close();
+
+$totalQuantity = 0;
+
+if (isset($_SESSION['customer_id'])) {
+	$customer_id = $_SESSION['customer_id'];
+	$conn = new mysqli("localhost", "root", "", "PlayVerse");
+
+	if (!$conn->connect_error) {
+		$cart_id = null;
+		$stmt = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ?");
+		$stmt->bind_param("i", $customer_id);
+		$stmt->execute();
+		$stmt->bind_result($cart_id);
+		if ($stmt->fetch()) {
+			$stmt->close();
+
+			$stmtQty = $conn->prepare("SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?");
+			$stmtQty->bind_param("i", $cart_id);
+			$stmtQty->execute();
+			$stmtQty->bind_result($totalQuantity);
+			$stmtQty->fetch();
+			$stmtQty->close();
+
+			if (!$totalQuantity) {
+				$totalQuantity = 0;
+			}
+		} else {
+			$stmt->close();
+		}
+	}
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -35,7 +66,7 @@ $conn->close();
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>Offers</title>
+	<title>Welcome</title>
 	<link
 		href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
 		rel="stylesheet" />
@@ -414,7 +445,12 @@ $conn->close();
 							<a class="nav-link" href="about.php"><i class="fa-solid fa-users"></i>ABOUT US</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="cart.php"><i class="fa-solid fa-cart-shopping"></i>CART</a>
+							<a class="nav-link" href="cart.php">
+								<i class="fa-solid fa-cart-shopping"></i>CART
+								<?php if (isset($_SESSION['customer_id']) && $totalQuantity > 0): ?>
+									<span class="badge bg-danger rounded-pill ms-1"><?= $totalQuantity ?></span>
+								<?php endif; ?>
+							</a>
 						</li>
 						<li class="nav-item">
 							<a href="login.php" class="cta-login"><i class="fa-solid fa-circle-user"></i>LOGIN
