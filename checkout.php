@@ -16,8 +16,8 @@ $totalPrice = 0;
 $totalQuantity = 0;
 $cart_id = null;
 
-// Handle form submission
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SESSION['customer_id'])) {
+// Handle order submission
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SESSION['customer_id']) && isset($_POST['place_order'])) {
 	$customer_id = $_SESSION['customer_id'];
 	$cart_id = $_POST['cart_id'];
 	$shipping_address = $_POST['shipping_address'];
@@ -25,18 +25,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SESSION['customer_id'])) {
 	$payment_method = $_POST['payment_method'];
 	$transaction_date = date('Y-m-d');
 
-	// Insert into transactions table
+	// Insert transaction
 	$stmt = $conn->prepare("INSERT INTO transactions (customer_id, cart_id, shipping_address, total_amount, mode_of_payment, transaction_date) VALUES (?, ?, ?, ?, ?, ?)");
 	$stmt->bind_param("iisdss", $customer_id, $cart_id, $shipping_address, $total_amount, $payment_method, $transaction_date);
 
 	if ($stmt->execute()) {
-		// Clear cart items
+		// Clear cart
 		$clear_stmt = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ?");
 		$clear_stmt->bind_param("i", $cart_id);
 		$clear_stmt->execute();
 		$clear_stmt->close();
 
-		echo "<script>alert('Order placed successfully!'); window.location.href='index.php';</script>";
+		echo "<script>alert('Order placed successfully!'); window.location.href='thankyou.php';</script>";
 		exit;
 	} else {
 		echo "<script>alert('Error placing order: " . $stmt->error . "');</script>";
@@ -45,11 +45,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SESSION['customer_id'])) {
 	$stmt->close();
 }
 
-// Fetch customer and cart info if logged in
+// Load customer + cart
 if (isset($_SESSION['customer_id'])) {
 	$customer_id = $_SESSION['customer_id'];
 
-	// Get customer info
+	// Customer info
 	$stmt = $conn->prepare("SELECT * FROM customers WHERE customer_id = ?");
 	$stmt->bind_param("i", $customer_id);
 	$stmt->execute();
@@ -59,7 +59,7 @@ if (isset($_SESSION['customer_id'])) {
 	}
 	$stmt->close();
 
-	// Get cart ID
+	// Cart ID
 	$stmt = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ?");
 	$stmt->bind_param("i", $customer_id);
 	$stmt->execute();
@@ -73,7 +73,7 @@ if (isset($_SESSION['customer_id'])) {
 	}
 	$stmt->close();
 
-	// Get cart items
+	// Cart items
 	$stmt = $conn->prepare("
 		SELECT ci.product_id, ci.quantity, p.name, p.price, p.image
 		FROM cart_items ci
@@ -90,37 +90,11 @@ if (isset($_SESSION['customer_id'])) {
 	}
 	$stmt->close();
 
-	// Calculate total quantity
 	$totalQuantity = array_sum(array_column($cart_items, 'quantity'));
 
-	// Format shipping address
 	$ship_address = $customer['street'] . ', ' . $customer['city'] . ', ' . $customer['province'] . ', ' . $customer['country'] . ' ' . $customer['zipcode'];
 }
 ?>
-
-<!-- Continue your HTML output here like before -->
-<!-- Replace your existing form and button area with this: -->
-
-<?php if ($customer && count($cart_items)): ?>
-	<form method="POST" action="checkout.php">
-		<select name="payment_method" class="form-select mb-3" required>
-			<option value="" disabled selected>Select method</option>
-			<option value="Credit/Debit">Credit/Debit Card</option>
-			<option value="Paypal">PayPal</option>
-			<option value="Gcash">GCash</option>
-		</select>
-
-		<!-- Hidden fields -->
-		<input type="hidden" name="shipping_address" value="<?= htmlspecialchars($ship_address) ?>">
-		<input type="hidden" name="total_amount" value="<?= number_format($totalPrice * 1.12, 2, '.', '') ?>">
-		<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
-
-		<div class="mt-4">
-			<button type="submit" class="btn cta-cart w-100">Place Order</button>
-		</div>
-	</form>
-<?php endif; ?>
-
 
 
 <!DOCTYPE html>
@@ -663,54 +637,54 @@ if (isset($_SESSION['customer_id'])) {
 	</nav>
 
 	<!-- Checkout Section -->
-	<section class="checkout-section py-5">
-		<div class="container">
-			<h2 class="text-center display-5 fw-bold mb-5" style="color:#8f43ec;">CHECKOUT</h2>
+<!-- Checkout Section -->
+<section class="checkout-section py-5">
+	<div class="container">
+		<h2 class="text-center display-5 fw-bold mb-5" style="color:#8f43ec;">CHECKOUT</h2>
 
+		<form method="POST" action="">
 			<div class="row g-5">
 				<!-- Customer Info -->
 				<div class="col-md-7">
 					<div class="bg-white p-4 rounded shadow">
 						<h2 style="color:#0a1128;">Customer Information</h2>
+
+						<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
+						<input type="hidden" name="total_amount" value="<?= number_format($totalPrice + ($totalPrice * 0.12), 2, '.', '') ?>">
+
 						<div class="mb-3">
 							<label for="name" class="form-label">Full Name</label>
-							<input type="text" class="form-control" id="name" value="<?= htmlspecialchars($customer['full_name'] ?? '') ?>" />
+							<input type="text" class="form-control" id="name" value="<?= htmlspecialchars($customer['full_name'] ?? '') ?>" readonly />
 						</div>
 						<div class="mb-3">
 							<label for="email" class="form-label">Email Address</label>
-							<input type="email" class="form-control" id="email" value="<?= htmlspecialchars($customer['email'] ?? '') ?>" />
+							<input type="email" class="form-control" id="email" value="<?= htmlspecialchars($customer['email'] ?? '') ?>" readonly />
 						</div>
 						<div class="mb-3">
 							<label for="phone" class="form-label">Phone Number</label>
-							<input type="tel" class="form-control" id="phone" value="<?= htmlspecialchars($customer['contact_no'] ?? '') ?>" />
+							<input type="tel" class="form-control" id="phone" value="<?= htmlspecialchars($customer['contact_no'] ?? '') ?>" readonly />
 						</div>
-
-						<?php
-						$ship_address = $customer['street'] . ', ' . $customer['city'] . ', ' . $customer['province'] . ', ' . $customer['country'] . ' ' . $customer['zipcode'];
-						?>
 
 						<div class="mb-3">
 							<label for="shippingadd" class="form-label">Shipping Address</label>
-							<textarea class="form-control" name="shippingadd" id="shippingadd" rows="2"><?= htmlspecialchars($ship_address) ?></textarea>
+							<textarea class="form-control" name="shipping_address" id="shippingadd" rows="2"><?= htmlspecialchars($ship_address) ?></textarea>
 						</div>
 
 						<h2 class="mt-4" style="color:#0a1128;">Payment Method</h2>
-						<form method="POST" action="place_order.php">
-							<select name="payment_method" class="form-select mb-3" required>
-								<option value="" disabled selected>Select method</option>
-								<option value="credit">Credit/Debit Card</option>
-								<option value="paypal">PayPal</option>
-								<option value="gcash">GCash</option>
-							</select>
-						</form>
+						<select name="payment_method" class="form-select mb-3" required>
+							<option value="" disabled selected>Select method</option>
+							<option value="Credit/Debit">Credit/Debit Card</option>
+							<option value="Paypal">PayPal</option>
+							<option value="Gcash">GCash</option>
+						</select>
 					</div>
 				</div>
 
 				<!-- Order Summary -->
-				<!-- Order Summary -->
 				<div class="col-md-5">
 					<div class="bg-white p-4 rounded shadow">
 						<h2 style="color:#0a1128;">Order Summary</h2>
+
 						<?php if (count($cart_items)): ?>
 							<?php foreach ($cart_items as $item): ?>
 								<div class="d-flex align-items-center mb-3">
@@ -723,15 +697,16 @@ if (isset($_SESSION['customer_id'])) {
 									</div>
 								</div>
 							<?php endforeach; ?>
+
 							<hr>
 							<div class="d-flex justify-content-between fs-6">
 								<span>Subtotal</span>
 								<span>₱<?= number_format($totalPrice, 2) ?></span>
 							</div>
 							<div class="d-flex justify-content-between fs-6">
-								<?php $vat = $totalPrice * 0.12 ?>
+								<?php $vat = $totalPrice * 0.12; ?>
 								<span>VAT(12%)</span>
-								<span><?= number_format($vat, 2) ?></span>
+								<span>₱<?= number_format($vat, 2) ?></span>
 							</div>
 							<hr>
 							<div class="d-flex justify-content-between fw-bold fs-4 mt-4">
@@ -739,30 +714,18 @@ if (isset($_SESSION['customer_id'])) {
 								<span class="text-success">₱<?= number_format($totalPrice + $vat, 2) ?></span>
 							</div>
 
-							<!-- ✅ Submit order form -->
-							<form method="POST" action="">
-								<input type="hidden" name="cart_id" value="<?= $cart_id ?>">
-								<input type="hidden" name="shipping_address" value="<?= htmlspecialchars($ship_address) ?>">
-								<input type="hidden" name="total_amount" value="<?= number_format($totalPrice + $vat, 2, '.', '') ?>">
-								<select name="payment_method" class="form-select mt-3 mb-3" required>
-									<option value="" disabled selected>Select method</option>
-									<option value="Credit/Debit">Credit/Debit Card</option>
-									<option value="Paypal">PayPal</option>
-									<option value="Gcash">GCash</option>
-								</select>
-								<button type="submit" name="place_order" class="btn cta-cart w-100">Place Order</button>
-							</form>
+							<button type="submit" name="place_order" class="btn cta-cart w-100 mt-4">Place Order</button>
 
 						<?php else: ?>
 							<div class="alert alert-warning">Your cart is empty.</div>
 						<?php endif; ?>
 					</div>
 				</div>
-
-
 			</div>
-		</div>
-	</section>
+		</form>
+	</div>
+</section>
+
 
 	<!-- Footer -->
 	<footer class="footer">

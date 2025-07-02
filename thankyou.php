@@ -1,33 +1,71 @@
 <?php
 session_start();
 
+// Redirect if user not logged in
 if (!isset($_SESSION['user']['username'])) {
 	header("Location: register.php");
 	exit;
 }
 
-$username = $_SESSION['user']['username'];
-
-// Connect to MySQL
+// Connect to the database
 $conn = new mysqli("localhost", "root", "", "PlayVerse");
 if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error);
 }
 
+// Get username from session and fetch full user info
+$username = $_SESSION['user']['username'];
 $stmt = $conn->prepare("SELECT * FROM customers WHERE username = ?");
 $stmt->bind_param("s", $username);
 $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows !== 1) {
-	echo "<script>alert('User not found in database.'); window.location.href='login.php';</script>";
-	exit;
+	die("User not found.");
 }
 
-$user = $result->fetch_assoc();
+$user = $result->fetch_assoc(); // Now contains customer_id and other details
 $stmt->close();
-$conn->close();
+
+// Fetch the latest transaction of the user
+$orderQuery = "
+	SELECT t.*, c.cart_id, c.customer_id 
+	FROM transactions t
+	JOIN cart c ON t.cart_id = c.cart_id
+	WHERE c.customer_id = ? 
+	ORDER BY t.transaction_date DESC 
+	LIMIT 1
+";
+$stmt = $conn->prepare($orderQuery);
+$stmt->bind_param("i", $user['customer_id']);
+$stmt->execute();
+$orderResult = $stmt->get_result();
+$order = $orderResult->fetch_assoc();
+$stmt->close();
+
+// Fetch cart items for that transaction
+$cartItems = [];
+if ($order) {
+	$cartId = $order['cart_id'];
+
+	$itemQuery = "
+		SELECT p.name, p.price, ci.quantity 
+		FROM cart_items ci
+		JOIN products p ON ci.product_id = p.product_id
+		WHERE ci.cart_id = ?
+	";
+	$stmt = $conn->prepare($itemQuery);
+	$stmt->bind_param("i", $cartId);
+	$stmt->execute();
+	$itemsResult = $stmt->get_result();
+
+	while ($row = $itemsResult->fetch_assoc()) {
+		$cartItems[] = $row;
+	}
+	$stmt->close();
+}
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -433,31 +471,56 @@ $conn->close();
 					<p class="lead">You're now logged in. Explore what Playverse has to offer!</p>
 				</div>
 
-				<div class="card p-5 my-5 rounded shadow fs-5">
-					<h2 class="mb-3">Personal Information</h2>
-					<div class="row">
-						<div class="col-md-6"><strong>Full Name:</strong> <?= htmlspecialchars($user['full_name']); ?></div>
-						<div class="col-md-6"><strong>Gender:</strong> <?= htmlspecialchars($user['gender']); ?></div>
-						<div class="col-md-6"><strong>Date of Birth:</strong> <?= htmlspecialchars($user['birthdate']); ?></div>
-						<div class="col-md-6"><strong>Email:</strong> <?= htmlspecialchars($user['email']); ?></div>
-						<div class="col-md-6"><strong>Phone Number:</strong> <?= htmlspecialchars($user['contact_no']); ?></div>
-					</div>
+<div class="card p-5 my-5 rounded shadow fs-5">
+	<h2 class="mb-3">Order Confirmation</h2>
+	<p class="lead text-success"><strong>Your order has been placed successfully!</strong></p>
 
-					<hr class="my-4" />
+	<?php if ($order): ?>
+		<div class="row mb-3">
+			<div class="col-md-6"><strong>Transaction ID:</strong> <?= $order['transaction_id']; ?></div>
+			<div class="col-md-6"><strong>Cart ID:</strong> <?= $order['cart_id']; ?></div>
+			<div class="col-md-6"><strong>Total Amount:</strong> ₱<?= number_format($order['total_amount'], 2); ?></div>
+			<div class="col-md-6"><strong>Payment Mode:</strong> <?= $order['mode_of_payment']; ?></div>
+			<div class="col-md-6"><strong>Shipping Address:</strong> <?= htmlspecialchars($order['shipping_address']); ?></div>
+			<div class="col-md-6"><strong>Date:</strong> <?= date("F j, Y", strtotime($order['transaction_date'])); ?></div>
+		</div>
 
-					<h2 class="mb-3">Address Details</h2>
-					<div class="row">
-						<div class="col-md-6"><strong>Street:</strong> <?= htmlspecialchars($user['street']); ?></div>
-						<div class="col-md-6"><strong>City:</strong> <?= htmlspecialchars($user['city']); ?></div>
-						<div class="col-md-6"><strong>Province/State:</strong> <?= htmlspecialchars($user['province']); ?></div>
-						<div class="col-md-6"><strong>Zip Code:</strong> <?= htmlspecialchars($user['zipcode']); ?></div>
-						<div class="col-md-6"><strong>Country:</strong> <?= htmlspecialchars($user['country']); ?></div>
-					</div>
+		<hr class="my-4" />
 
-					<div class="mt-3 mb-1 text-end">
-						<a href="logout.php" class="btn btn-danger px-4 py-2">Log Out</a>
-					</div>
-				</div>
+		<h3 class="mb-3">Order Summary</h3>
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped">
+				<thead class="table-light">
+					<tr>
+						<th>Product Name</th>
+						<th>Price</th>
+						<th>Quantity</th>
+						<th>Subtotal</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ($cartItems as $item): ?>
+						<tr>
+							<td><?= htmlspecialchars($item['name']); ?></td>
+							<td>₱<?= number_format($item['price'], 2); ?></td>
+							<td><?= $item['quantity']; ?></td>
+							<td>₱<?= number_format($item['price'] * $item['quantity'], 2); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+	<?php else: ?>
+		<p class="text-danger">No recent order found.</p>
+	<?php endif; ?>
+
+	<hr class="my-4" />
+
+	<div class="d-flex justify-content-end gap-3">
+		<a href="index.php" class="btn btn-outline-primary px-4 py-2">Go to Homepage</a>
+		<a href="offers.php" class="btn btn-primary px-4 py-2">Browse More Offers</a>
+	</div>
+</div>
 			</div>
 		</section>
 
