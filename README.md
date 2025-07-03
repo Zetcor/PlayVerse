@@ -43,6 +43,7 @@ To access the application:
 
 ## Screenshots
 
+Homepage
 -   ![Homepage](screenshots/index.png)
 -   ![About](screenshots/about.png)
 -   ![Login](screenshots/login.png)
