@@ -513,7 +513,6 @@ if (isset($_SESSION['customer_id'])) {
 			background-color: #dc3545;
 			color: white;
 		}
-
 	</style>
 </head>
 
@@ -598,8 +597,7 @@ if (isset($_SESSION['customer_id'])) {
 						WELCOME TO <span class="highlight">PLAYVERSE</span>
 					</h1>
 					<p class="lead fw-medium text-light my-4">
-						Welcome to Playverse, where you can have the opportunity to see
-						the world of competitive gaming. Explore our offers and get to
+						Your one-stop online store for the latest and most reliable computer parts and peripherals designed to power up your gaming, work and creative experience. Explore our offers and get to
 						know us more.
 					</p>
 					<a href="offers.php" class="cta-button"> Browse PlayVerse </a>

@@ -477,7 +477,6 @@ if ($order) {
 			background-color: #dc3545;
 			color: white;
 		}
-
 	</style>
 </head>
 
@@ -556,9 +555,10 @@ if ($order) {
 		<section class="profile-section d-flex flex-column align-items-center justify-content-center">
 			<div class="profile-wrapper text-start fs-5">
 				<div class="text-center mt-5 p-5 bg-light rounded shadow">
+					<?php $full_name = explode(' ', $user['full_name']); ?>
 					<h1 class="mb-3">
 						<i class="fa-solid fa-check-circle" style="color: var(--teal);"></i>
-						Thank You for Your Purchase, <i><?= htmlspecialchars($user['username']); ?></i>!
+						Thank You for Your Purchase, <i><?= htmlspecialchars($full_name[0]); ?>!</i>
 					</h1>
 					<p class="lead">We appreciate your trust in Playverse. You'll receive a confirmation email shortly.</p>
 				</div>
@@ -570,11 +570,11 @@ if ($order) {
 					<?php if ($order): ?>
 						<div class="row mb-3">
 							<div class="col-md-6"><strong>Transaction ID:</strong> <?= $order['transaction_id']; ?></div>
-							<div class="col-md-6"><strong>Cart ID:</strong> <?= $order['cart_id']; ?></div>
-							<div class="col-md-6"><strong>Total Amount:</strong> ₱<?= number_format($order['total_amount'], 2); ?></div>
 							<div class="col-md-6"><strong>Payment Mode:</strong> <?= $order['mode_of_payment']; ?></div>
-							<div class="col-md-6"><strong>Shipping Address:</strong> <?= htmlspecialchars($order['shipping_address']); ?></div>
 							<div class="col-md-6"><strong>Date:</strong> <?= date("F j, Y", strtotime($order['transaction_date'])); ?></div>
+							<div class="col-md-6"><strong>Total Amount:</strong> ₱<?= number_format($order['total_amount'], 2); ?></div>
+							<div class="col-md-6"><strong>Shipping Address:</strong> <?= htmlspecialchars($order['shipping_address']); ?></div>
+
 						</div>
 
 						<hr class="my-4" />

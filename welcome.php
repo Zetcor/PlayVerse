@@ -530,7 +530,8 @@ if (isset($_SESSION['customer_id'])) {
 		<section class="profile-section d-flex flex-column align-items-center justify-content-center">
 			<div class="profile-wrapper text-start fs-5">
 				<div class="text-center mt-5 p-5 bg-light rounded shadow">
-					<h1 class="mb-3"><i class="fa-solid fa-user-check" style="color: #00f5d4;"></i> Welcome, <i><?= htmlspecialchars($user['username']); ?></i>, to your dashboard!</h1>
+					<?php $full_name = explode(' ', $user['full_name']); ?>
+					<h1 class="mb-3"><i class="fa-solid fa-user-check" style="color: #00f5d4;"></i> Welcome, <i><?= htmlspecialchars($full_name[0]); ?></i>, to your dashboard!</h1>
 					<p class="lead">You're now logged in. Explore what Playverse has to offer!</p>
 				</div>
 
@@ -556,7 +557,7 @@ if (isset($_SESSION['customer_id'])) {
 					</div>
 
 					<div class="mt-3 mb-1 text-end">
-						<a href="logout.php" class="btn btn-danger px-4 py-2">Log Out</a>
+						<a href="logout.php" class="btn btn-danger px-4 py-2"><i class="fa-solid fa-right-from-bracket"></i>Log Out</a>
 					</div>
 				</div>
 			</div>

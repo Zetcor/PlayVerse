@@ -608,7 +608,6 @@ $result = $conn->query($sql);
 			background-color: #dc3545;
 			color: white;
 		}
-
 	</style>
 </head>
 
@@ -680,8 +679,6 @@ $result = $conn->query($sql);
 		<!-- Products Section -->
 		<section class="promotions-section py-5 text-light">
 			<div class="container">
-
-				<!-- heading & sort dropdown (unchanged) -->
 				<div class="text-center mb-4">
 					<h2 class="display-5 fw-bold">ALL PRODUCTS</h2>
 					<p class="lead" style="color:#0a1128">BROWSE WHAT WE HAVE IN STORE FOR YOU!</p>
@@ -704,9 +701,8 @@ $result = $conn->query($sql);
 						<div class="col-12 col-sm-6 col-md-4 col-lg-3">
 							<div class="card h-100 promotion-card text-light">
 								<div class="promo-img-box">
-									<a href="product.php">
-										<img src="imgs/<?= htmlspecialchars($row['image']) ?>"
-											class="promo-img" alt="<?= htmlspecialchars($row['name']) ?>">
+									<a href="product.php?id=<?= $row['product_id'] ?>">
+										<img src="imgs/<?= htmlspecialchars($row['image']) ?>" class="promo-img" alt="<?= htmlspecialchars($row['name']) ?>">
 									</a>
 								</div>
 
@@ -721,7 +717,6 @@ $result = $conn->query($sql);
 										<small class="text-secondary">Date Added: <?= date('F j, Y', strtotime($row['date_added'])) ?></small>
 									</div>
 
-									<!-- --------- Add‑to‑Cart area (differs for guests) ---------- -->
 									<?php if ($loggedIn): ?>
 										<form method="post"
 											action="offers.php?sort=<?= urlencode($sort_option) ?>"
@@ -760,7 +755,6 @@ $result = $conn->query($sql);
 											</div>
 										</div>
 									<?php endif; ?>
-									<!-- ---------------------------------------------------------- -->
 
 								</div>
 							</div>

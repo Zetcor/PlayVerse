@@ -4,13 +4,14 @@ session_start();
 $totalQuantity = 0;
 $username = null;
 
+$conn = new mysqli("localhost", "root", "", "PlayVerse");
+if ($conn->connect_error) {
+	die("Connection failed: " . $conn->connect_error);
+}
+
+// If customer is logged in
 if (isset($_SESSION['customer_id'])) {
 	$customer_id = $_SESSION['customer_id'];
-
-	$conn = new mysqli("localhost", "root", "", "PlayVerse");
-	if ($conn->connect_error) {
-		die("Connection failed: " . $conn->connect_error);
-	}
 
 	// Get username
 	$get_user = $conn->prepare("SELECT username FROM customers WHERE customer_id = ?");
@@ -40,7 +41,7 @@ if (isset($_SESSION['customer_id'])) {
 		$stmt->close();
 	}
 
-	// Get total quantity
+	// Get total quantity in cart
 	$sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
 	$stmtQty = $conn->prepare($sqlQty);
 	$stmtQty->bind_param("i", $cart_id);
@@ -52,6 +53,68 @@ if (isset($_SESSION['customer_id'])) {
 	if (!$totalQuantity) {
 		$totalQuantity = 0;
 	}
+}
+
+// Get product ID from URL
+if (!isset($_GET['id'])) {
+	die("Product ID not specified.");
+}
+
+$product_id = intval($_GET['id']);
+
+// Fetch product from database
+$product = null;
+$sql = "SELECT * FROM products WHERE product_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $product_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows > 0) {
+	$product = $result->fetch_assoc();
+} else {
+	die("Product not found.");
+}
+
+$stmt->close();
+
+// Handle "Add to Cart" form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'], $_POST['quantity'])) {
+	$product_id = intval($_POST['product_id']);
+	$quantity = max(1, intval($_POST['quantity']));
+
+	// Check if product already exists in the cart
+	$stmt = $conn->prepare("SELECT quantity FROM cart_items WHERE cart_id = ? AND product_id = ?");
+	$stmt->bind_param("ii", $cart_id, $product_id);
+	$stmt->execute();
+	$stmt->bind_result($existing_qty);
+
+	if ($stmt->fetch()) {
+		$stmt->close();
+		$new_qty = $existing_qty + $quantity;
+
+		// Update quantity in cart
+		$upd = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?");
+		$upd->bind_param("iii", $new_qty, $cart_id, $product_id);
+		$upd->execute();
+		$upd->close();
+	} else {
+		$stmt->close();
+		// Insert new item into cart
+		$ins = $conn->prepare("INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)");
+		$ins->bind_param("iii", $cart_id, $product_id, $quantity);
+		$ins->execute();
+		$ins->close();
+	}
+
+	// Update total quantity in the cart
+	$sqlQty = "SELECT SUM(quantity) FROM cart_items WHERE cart_id = ?";
+	$stmtQty = $conn->prepare($sqlQty);
+	$stmtQty->bind_param("i", $cart_id);
+	$stmtQty->execute();
+	$stmtQty->bind_result($totalQuantity);
+	$stmtQty->fetch();
+	$stmtQty->close();
 }
 ?>
 
@@ -506,7 +569,6 @@ if (isset($_SESSION['customer_id'])) {
 			background-color: #dc3545;
 			color: white;
 		}
-
 	</style>
 </head>
 
@@ -554,29 +616,29 @@ if (isset($_SESSION['customer_id'])) {
 							<?php endif; ?>
 						</a>
 					</li>
-						<li class="nav-item dropdown">
-							<?php if (isset($_SESSION['customer_id']) && $username): ?>
-								<a class="cta-login dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-									<i class="fa-solid fa-circle-user"></i> <?= htmlspecialchars($username) ?>
-								</a>
-								<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-									<li>
-										<a class="dropdown-item" href="welcome.php">
-											<i class="fa-solid fa-user"></i> My Profile
-										</a>
-									</li>
-									<li>
-										<a class="dropdown-item" href="logout.php">
-											<i class="fa-solid fa-right-from-bracket"></i> Logout
-										</a>
-									</li>
-								</ul>
-							<?php else: ?>
-								<a href="login.php" class="cta-login">
-									<i class="fa-solid fa-circle-user"></i> LOGIN
-								</a>
-							<?php endif; ?>
-						</li>
+					<li class="nav-item dropdown">
+						<?php if (isset($_SESSION['customer_id']) && $username): ?>
+							<a class="cta-login dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+								<i class="fa-solid fa-circle-user"></i> <?= htmlspecialchars($username) ?>
+							</a>
+							<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+								<li>
+									<a class="dropdown-item" href="welcome.php">
+										<i class="fa-solid fa-user"></i> My Profile
+									</a>
+								</li>
+								<li>
+									<a class="dropdown-item" href="logout.php">
+										<i class="fa-solid fa-right-from-bracket"></i> Logout
+									</a>
+								</li>
+							</ul>
+						<?php else: ?>
+							<a href="login.php" class="cta-login">
+								<i class="fa-solid fa-circle-user"></i> LOGIN
+							</a>
+						<?php endif; ?>
+					</li>
 				</ul>
 			</div>
 		</div>
@@ -590,52 +652,28 @@ if (isset($_SESSION['customer_id'])) {
 					<!-- Image -->
 					<div class="col-md-6">
 						<div class="product-img-box">
-							<img
-								src="imgs/rtx4080.jpg"
-								alt="RTX 4080 GPU"
-								class="product-img" />
+							<img src="imgs/<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img" />
 						</div>
 					</div>
 
 					<!-- Info -->
 					<div class="col-md-6 text-light">
-						<h2 class="display-5 fw-bold">RTX 4080 Gaming GPU</h2>
-						<p class="fs-4" style="color: var(--teal)">₱59,999</p>
-						<p>
-							The NVIDIA GeForce RTX 4080 is a top-tier graphics card built
-							for gamers and creators. It delivers exceptional 4K performance,
-							real-time ray tracing, and AI-powered features powered by DLSS
-							3.0.
-						</p>
-						<ul class="mb-4">
-							<li><strong>Memory:</strong> 16GB GDDR6X</li>
-							<li><strong>Cooling:</strong> Triple-fan thermal system</li>
-							<li><strong>Ports:</strong> HDMI 2.1, 3x DisplayPort 1.4a</li>
-							<li><strong>Recommended PSU:</strong> 850W</li>
-						</ul>
-						<div class="quantity-wrapper mb-4">
-							<label class="form-label mb-1"><strong>Quantity:</strong></label>
-							<div class="input-group input-group-sm">
-								<button
-									class="btn btn-outline-light py-0 px-3 fs-5"
-									type="button"
-									onclick="this.nextElementSibling.stepDown()">
-									-
-								</button>
-								<input
-									type="number"
-									class="form-control text-center border-light"
-									value="1"
-									min="1" />
-								<button
-									class="btn btn-outline-light py-0 px-3 fs-5"
-									type="button"
-									onclick="this.previousElementSibling.stepUp()">
-									+
-								</button>
+						<h2 class="display-5 fw-bold"><?= htmlspecialchars($product['name']) ?></h2>
+						<p class="fw-bold fs-4" style="color: var(--teal)">₱<?= number_format($product['price'], 2) ?></p>
+						<p><?= nl2br(htmlspecialchars($product['description'])) ?></p>
+
+						<form method="post">
+							<div class="quantity-wrapper mb-4">
+								<label class="form-label mb-1"><strong>Quantity:</strong></label>
+								<div class="input-group input-group-sm">
+									<button class="btn btn-outline-light py-0 px-3 fs-5" type="button" onclick="this.nextElementSibling.stepDown()">-</button>
+									<input type="number" class="form-control text-center border-light" name="quantity" value="1" min="1">
+									<button class="btn btn-outline-light py-0 px-3 fs-5" type="button" onclick="this.previousElementSibling.stepUp()">+</button>
+								</div>
 							</div>
-						</div>
-						<a href="#" class="cta-cart">Add to Cart</a>
+							<input type="hidden" name="product_id" value="<?= $product['product_id'] ?>" />
+							<button type="submit" class="cta-cart">Add to Cart</button>
+						</form>
 					</div>
 				</div>
 			</div>

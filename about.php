@@ -550,6 +550,14 @@ if (isset($_SESSION['customer_id'])) {
 			border-radius: var(--border-radius);
 			box-shadow: var(--box-shadow);
 			padding: 30px;
+			margin-top: -10px;
+			margin: 0 12px 10px;
+		}
+
+		.contact-form {
+			padding: 30px;
+			margin-top: -10px;
+			margin: 0 12px 10px;
 		}
 
 		.contact-form .form-control {
@@ -606,6 +614,32 @@ if (isset($_SESSION['customer_id'])) {
 			color: white;
 		}
 
+		.about-row-match-height {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: stretch;
+		}
+
+		.about-row-match-height .text-col {
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+		}
+
+		.about-row-match-height .image-col {
+			display: flex;
+			align-items: stretch;
+			justify-content: center;
+		}
+
+		.about-row-match-height .image-col img {
+			width: 700px;
+			height: 300px;
+			object-fit: cover;
+			border-radius: var(--border-radius);
+			box-shadow: var(--box-shadow);
+			background: #fff;
+		}
 	</style>
 </head>
 
@@ -682,7 +716,6 @@ if (isset($_SESSION['customer_id'])) {
 	</nav>
 
 	<!-- About Us Section -->
-	<!-- About Section -->
 	<section class="about-section">
 		<div class="container">
 			<div class="text-center mb-5">
@@ -699,19 +732,62 @@ if (isset($_SESSION['customer_id'])) {
 				</p>
 			</div>
 
-			<div class="row g-5">
+			<!-- Two Horizontal Sections with Alternating Image/Text -->
+			<div class="container mb-4">
+				<!-- First Row: Text Left, Image Right -->
+				<div class="row about-row-match-height mb-4">
+					<div class="col-md-6 text-col">
+						<div class="p-4 bg-white rounded shadow h-100">
+							<p>
+								"We combine technology, passion, and precision to deliver a gaming experience like no other.
+								We’re committed to helping gamers reach their full potential with carefully selected gear
+								and trusted support."
+							</p>
+							<p class="text-end" style="color: var(--purple);">
+								— Jenilyn Denise T. Chua
+								<br><small>PlayVerse Author</small>
+							</p>
+						</div>
+					</div>
+					<div class="col-md-6 image-col">
+						<img src="imgs/chua.JPG" alt="Why Choose Us" />
+					</div>
+				</div>
+
+				<!-- Second Row: Image Left, Text Right -->
+				<div class="row about-row-match-height mb-3 flex-md-row-reverse">
+					<div class="col-md-6 text-col">
+						<div class="p-4 bg-white rounded shadow h-100">
+							<p>
+								"We’re more than just a brand—we’re gamers too. From the latest console releases to high-end PC builds,
+								our passion drives everything we do. Join us on the journey to level up your play."
+							</p>
+							<p class="text-end" style="color: var(--purple);">
+								— Vince Nicholai J. Cortez
+								<br><small>PlayVerse Author</small>
+							</p>
+						</div>
+					</div>
+					<div class="col-md-6 image-col">
+						<img src="imgs/cortez.JPG" alt="Gaming Passion" />
+					</div>
+				</div>
+
+			</div>
+
+			<div class="row g-1">
 				<!-- Company Info -->
 				<div class="col-md-6">
 					<div class="company-info">
 						<h2 style="color: var(--navy)">Our Mission</h2>
 						<p>
-							Our mission is to empower gamers by providing premium equipment,
+							Our mission is to empower professional and casual gamers by providing premium equipment,
 							fast support, and a seamless shopping experience. From GPUs and
 							consoles to accessories, we deliver what you need to stay ahead
 							in the game.
 						</p>
 
-						<h4 style="color: var(--navy)" class="mt-4">Get in Touch</h4>
+						<h2 style="color: var(--navy)" class="mt-4">Get in Touch</h2>
 						<p>
 							<i class="fa-solid fa-envelope"></i> Email:
 							support@playverse.com
@@ -745,12 +821,12 @@ if (isset($_SESSION['customer_id'])) {
 									id="contactEmail"
 									required />
 							</div>
-							<div class="mb-3">
+							<div class="mb-4">
 								<label for="contactMessage" class="form-label">Message</label>
 								<textarea
 									class="form-control"
 									id="contactMessage"
-									rows="2"
+									rows="3"
 									required></textarea>
 							</div>
 							<button type="submit" class="btn btn-primary w-100">
