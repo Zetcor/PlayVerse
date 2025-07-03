@@ -43,16 +43,25 @@ To access the application:
 
 ## Screenshots
 
-Homepage
+### Homepage
 -   ![Homepage](screenshots/index.png)
+### About Us
 -   ![About](screenshots/about.png)
+### Login
 -   ![Login](screenshots/login.png)
+### Register
 -   ![Register](screenshots/register.png)
+### Welcome
 -   ![Welcome](screenshots/welcome.png)
+### Offers
 -   ![Offers](screenshots/offers.png)
+### Products
 -   ![Products](screenshots/products.png)
+### Cart
 -   ![Cart](screenshots/cart.png)
+### Checkout
 -   ![Checkout](screenshots/checkout.png)
+### Transaction Receipt
 -   ![ThankYou](screenshots/thankyou.png)
 
 ---
